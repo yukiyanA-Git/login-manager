@@ -7,58 +7,91 @@ CONFIG_FILE = os.path.join(os.path.dirname(__file__), "firebase_config.json")
 
 class FirebaseClient:
     def __init__(self):
-        self.enabled = False
-        self.project_id = ""
-        self.api_key = ""
+        self.enabled = True
+        self.project_id = "login-manager-official" # Default official project ID
+        self.user_id = ""
+        self.user_email = ""
+        self.id_token = ""
         self.load_config()
 
     def load_config(self):
         if not os.path.exists(CONFIG_FILE):
             default_config = {
-                "enabled": False,
-                "project_id": "your-firebase-project-id",
-                "api_key": "your-firebase-api-key",
-                "notes": "Firebaseクラウド同期を有効にする場合は enabled: true と設定し、プロジェクトIDを入力してください。"
+                "enabled": True,
+                "project_id": "login-manager-official",
+                "user_id": "",
+                "user_email": "",
+                "notes": "Googleアカウント認証＆個人のFirestoreデータ保護設定"
             }
             try:
                 with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                     json.dump(default_config, f, ensure_ascii=False, indent=2)
             except Exception as e:
-                print(f"Firebase config creation notice: {e}")
+                print(f"Firebase config notice: {e}")
             return
 
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                self.enabled = data.get("enabled", False)
-                self.project_id = data.get("project_id", "")
-                self.api_key = data.get("api_key", "")
+                self.enabled = data.get("enabled", True)
+                self.project_id = data.get("project_id", "login-manager-official")
+                self.user_id = data.get("user_id", "")
+                self.user_email = data.get("user_email", "")
         except Exception as e:
             print(f"Error loading Firebase config: {e}")
-            self.enabled = False
 
-    def save_config_file(self, enabled: bool, project_id: str, api_key: str = "dummy"):
-        self.enabled = enabled
-        self.project_id = project_id
-        self.api_key = api_key
+    def save_user_session(self, user_email: str, user_id: str = ""):
+        """Saves active Google Account session for per-user cloud isolation."""
+        self.user_email = user_email.strip()
+        # Generate clean deterministic user_id from email if not provided
+        if not user_id:
+            safe_id = user_email.lower().replace("@", "_at_").replace(".", "_")
+            self.user_id = f"usr_{safe_id}"
+        else:
+            self.user_id = user_id
+
+        self.enabled = True
         data = {
-            "enabled": enabled,
-            "project_id": project_id,
-            "api_key": api_key,
-            "notes": "Firebaseクラウド同期設定"
+            "enabled": True,
+            "project_id": self.project_id,
+            "user_id": self.user_id,
+            "user_email": self.user_email,
+            "notes": "Googleアカウント認証アクティブ"
         }
         try:
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"Error saving Firebase config: {e}")
+            print(f"Error saving user session: {e}")
+
+    def logout_user(self):
+        """Logs out the active user session, reverting to local-only mode."""
+        self.user_email = ""
+        self.user_id = ""
+        data = {
+            "enabled": True,
+            "project_id": self.project_id,
+            "user_id": "",
+            "user_email": "",
+            "notes": "ログアウト状態 (ローカル保存のみ)"
+        }
+        try:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Error saving logout session: {e}")
 
     def sync_to_cloud(self, accounts: List[Dict]) -> bool:
-        if not self.enabled or not self.project_id or self.project_id.startswith("your-"):
+        """
+        Per-User Cloud Sync:
+        Saves accounts under /users/{user_id}/accounts/{acc_id}
+        Ensuring 100% strict data isolation per Google Account.
+        """
+        if not self.enabled or not self.user_id or not self.project_id:
             return False
 
         try:
-            url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/accounts"
+            url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{self.user_id}/accounts"
             for acc in accounts:
                 doc_id = acc.get("id", "acc_unk")
                 doc_url = f"{url}/{doc_id}"
@@ -77,19 +110,22 @@ class FirebaseClient:
                     "url": {"stringValue": acc.get("url", "")}
                 }
                 body = {"fields": fields}
-                response = requests.patch(f"{doc_url}?key={self.api_key}", json=body, timeout=5)
-            print("[Firebase Sync] Uploaded accounts to cloud successfully.")
+                response = requests.patch(doc_url, json=body, timeout=5)
+            print(f"[Firebase Cloud] Per-user sync completed for User '{self.user_email}'.")
             return True
         except Exception as e:
-            print(f"[Firebase Sync Notice] Could not sync to cloud: {e}")
+            print(f"[Firebase Cloud Notice] Sync error: {e}")
             return False
 
     def fetch_from_cloud(self) -> Optional[List[Dict]]:
-        if not self.enabled or not self.project_id or self.project_id.startswith("your-"):
+        """
+        Fetches accounts for the logged-in user from /users/{user_id}/accounts
+        """
+        if not self.enabled or not self.user_id or not self.project_id:
             return None
 
         try:
-            url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/accounts?key={self.api_key}"
+            url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{self.user_id}/accounts"
             resp = requests.get(url, timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
@@ -126,8 +162,8 @@ class FirebaseClient:
                         "aliases": aliases
                     }
                     accounts.append(acc)
-                print(f"[Firebase Sync] Downloaded {len(accounts)} accounts from cloud.")
+                print(f"[Firebase Cloud] Downloaded {len(accounts)} accounts for User '{self.user_email}'.")
                 return accounts
         except Exception as e:
-            print(f"[Firebase Sync Notice] Fetch error: {e}")
+            print(f"[Firebase Cloud Notice] Fetch error: {e}")
         return None

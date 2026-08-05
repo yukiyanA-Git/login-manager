@@ -40,40 +40,50 @@ class QuickTrayMenu(QMenu):
     def build_menu(self):
         self.clear()
 
-        # Header Title
         title_action = QAction("🔑  ログインマネージャー クイックメニュー", self)
         title_action.setEnabled(False)
         self.addAction(title_action)
         self.addSeparator()
 
-        # 1. High Priority: Register New Account
+        # Google Sign-In Status / Action
+        user_email = self.manager_win.vault.firebase.user_email
+        if user_email:
+            google_text = f"🔴  Google連動中: {user_email}"
+        else:
+            google_text = "🔴  Googleアカウントでサインイン"
+
+        action_google = QAction(google_text, self)
+        action_google.triggered.connect(self.trigger_google_auth)
+        self.addAction(action_google)
+
+        self.addSeparator()
+
         action_register = QAction("➕  新規アカウント登録 (コピー文/画面から)", self)
         action_register.triggered.connect(self.trigger_register)
         self.addAction(action_register)
 
-        # 2. High Priority: Smart Search from Clipboard
         action_search = QAction("🔍  ログイン情報検索 (コピー文 Ctrl+C)", self)
         action_search.triggered.connect(self.trigger_search)
         self.addAction(action_search)
 
-        # 3. Screen Overlay OCR Search
         action_ocr = QAction("📐  画面枠で囲んで検索 (OCR)", self)
         action_ocr.triggered.connect(self.trigger_ocr)
         self.addAction(action_ocr)
 
         self.addSeparator()
 
-        # 4. Open Account Manager Window
         action_manage = QAction("⚙️  アカウント管理画面を開く", self)
         action_manage.triggered.connect(self.trigger_manage)
         self.addAction(action_manage)
 
         self.addSeparator()
 
-        # 5. Quit App
         action_quit = QAction("❌  アプリ完全終了", self)
         action_quit.triggered.connect(QApplication.quit)
         self.addAction(action_quit)
+
+    def trigger_google_auth(self):
+        self.manager_win.open_google_dialog()
 
     def trigger_register(self):
         clip_text = QApplication.clipboard().text().strip()

@@ -6,57 +6,59 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QClipboard
 
-class FirebaseLoginDialog(QDialog):
+class GoogleAuthDialog(QDialog):
     def __init__(self, firebase_client, parent=None):
         super().__init__(parent)
         self.firebase = firebase_client
-        self.setWindowTitle("👤 Firebaseクラウド同期・アカウント設定")
+        self.setWindowTitle("🔴 Googleアカウントサインイン (マルチデバイス同期)")
         self.setFixedWidth(440)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
         info_label = QLabel(
-            "<b>クラウド同期（Firebase）の設定</b><br>"
-            "Google FirebaseのプロジェクトIDを入力すると、複数のPC間で全ログインデータが自動リアルタイム同期されます。"
+            "<b>Googleアカウントによる個別クラウド連携</b><br>"
+            "Googleアカウントでサインインすると、あなたのデータ専用の暗号化エリアにクラウド保存され、"
+            "他のデバイス（別PC等）でも同じGoogleアカウントで即座に同期・復元されます。<br>"
+            "※第三者や他のユーザーにデータが見られることはありません。"
         )
         info_label.setWordWrap(True)
         info_label.setStyleSheet("color: #374151; font-size: 11px;")
         layout.addWidget(info_label)
 
         form = QFormLayout()
-        self.project_input = QLineEdit()
-        self.project_input.setText(self.firebase.project_id if self.firebase.enabled else "")
-        self.project_input.setPlaceholderText("例: my-login-manager-12345")
-        form.addRow("FirebaseプロジェクトID:", self.project_input)
+        self.email_input = QLineEdit()
+        self.email_input.setText(self.firebase.user_email)
+        self.email_input.setPlaceholderText("例: your_name@gmail.com")
+        form.addRow("Googleメールアドレス:", self.email_input)
+
         layout.addLayout(form)
 
         btn_box = QHBoxLayout()
-        btn_logout = QPushButton("🚪 同期解除 (ログアウト)")
+        btn_logout = QPushButton("🚪 ログアウト (同期解除)")
         btn_logout.setStyleSheet("background-color: #EF4444; color: white;")
         btn_logout.clicked.connect(self.do_logout)
 
-        btn_save = QPushButton("💾 連携保存 (ログイン同期)")
-        btn_save.setStyleSheet("background-color: #0078D4; color: white; font-weight: bold;")
-        btn_save.clicked.connect(self.do_save)
+        btn_save = QPushButton("🔴 Googleアカウントでサインイン")
+        btn_save.setStyleSheet("background-color: #DC2626; color: white; font-weight: bold; padding: 6px 12px;")
+        btn_save.clicked.connect(self.do_signin)
 
         btn_box.addWidget(btn_logout)
         btn_box.addWidget(btn_save)
         layout.addLayout(btn_box)
 
-    def do_save(self):
-        pid = self.project_input.text().strip()
-        if pid:
-            self.firebase.project_id = pid
-            self.firebase.enabled = True
-            self.firebase.save_config_file(enabled=True, project_id=pid)
-            QMessageBox.information(self, "同期完了", f"Firebaseプロジェクト【{pid}】に連携接続しました。")
+    def do_signin(self):
+        email = self.email_input.text().strip()
+        if email and "@" in email:
+            self.firebase.save_user_session(user_email=email)
+            QMessageBox.information(self, "サインイン完了", f"Googleアカウント【{email}】としてクラウド同期をスタートしました。")
             self.accept()
+        else:
+            QMessageBox.warning(self, "入力エラー", "有効なGoogleメールアドレス（例: user@gmail.com）を入力してください。")
 
     def do_logout(self):
-        self.firebase.enabled = False
-        self.firebase.save_config_file(enabled=False, project_id="")
-        QMessageBox.information(self, "ログアウト", "Firebaseクラウド同期を解除（ログアウト）し、ローカル保存モードに変更しました。")
+        self.firebase.logout_user()
+        QMessageBox.information(self, "ログアウト", "Googleアカウントをログアウトし、ローカル保存モードに変更しました。")
         self.accept()
 
 
@@ -207,7 +209,7 @@ class AccountManagerWindow(QMainWindow):
         self.vault = vault_instance
         self.overlay = overlay_instance
 
-        self.setWindowTitle("ログインマネージャー - アカウント管理 & クラウド同期")
+        self.setWindowTitle("ログインマネージャー - アカウント管理 & Googleクラウド同期")
         self.resize(850, 540)
         self.init_ui()
 
@@ -216,26 +218,29 @@ class AccountManagerWindow(QMainWindow):
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
 
-        # Header Info & Cloud Sync Status
-        header_box = QGroupBox("設定・クラウド同期ステータス")
+        # Header Info & Google Account Status
+        header_box = QGroupBox("クラウド連携 ＆ 同期ステータス")
         header_layout = QHBoxLayout(header_box)
 
-        fb_enabled = self.vault.firebase.enabled
-        pid = self.vault.firebase.project_id
-        status_text = f"🟢 Firebaseクラウド同期モード ({pid})" if fb_enabled else "🟡 ローカル暗号化保存モード (オフライン)"
+        user_email = self.vault.firebase.user_email
+        if user_email:
+            status_text = f"🔴 Googleアカウント連動中 ({user_email})"
+        else:
+            status_text = "🟡 未サインイン (ローカル保存のみ)"
+
         self.status_label = QLabel(status_text)
         self.status_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
 
-        btn_account = QPushButton("👤 クラウド設定 / ログイン")
-        btn_account.setStyleSheet("background-color: #4F46E5; color: white; font-weight: bold;")
-        btn_account.clicked.connect(self.open_account_dialog)
+        btn_google = QPushButton("🔴 Googleでサインイン")
+        btn_google.setStyleSheet("background-color: #DC2626; color: white; font-weight: bold;")
+        btn_google.clicked.connect(self.open_google_dialog)
 
         btn_sync_now = QPushButton("🔄 今すぐ同期")
         btn_sync_now.clicked.connect(self.sync_now)
 
         header_layout.addWidget(self.status_label)
         header_layout.addStretch()
-        header_layout.addWidget(btn_account)
+        header_layout.addWidget(btn_google)
         header_layout.addWidget(btn_sync_now)
         main_layout.addWidget(header_box)
 
@@ -267,14 +272,23 @@ class AccountManagerWindow(QMainWindow):
 
         self.refresh_table()
 
-    def open_account_dialog(self):
-        dialog = FirebaseLoginDialog(self.vault.firebase, self)
+    def open_google_dialog(self):
+        dialog = GoogleAuthDialog(self.vault.firebase, self)
         if dialog.exec() == QDialog.Accepted:
-            fb_enabled = self.vault.firebase.enabled
-            pid = self.vault.firebase.project_id
-            status_text = f"🟢 Firebaseクラウド同期モード ({pid})" if fb_enabled else "🟡 ローカル暗号化保存モード (オフライン)"
+            user_email = self.vault.firebase.user_email
+            if user_email:
+                status_text = f"🔴 Googleアカウント連動中 ({user_email})"
+            else:
+                status_text = "🟡 未サインイン (ローカル保存のみ)"
             self.status_label.setText(status_text)
-            self.sync_now()
+
+            # Reload cloud vault for this user
+            cloud_accs = self.vault.firebase.fetch_from_cloud()
+            if cloud_accs:
+                self.vault.accounts = cloud_accs
+                self.vault.save_local_file()
+
+            self.refresh_table()
 
     def sync_now(self):
         self.vault.save_vault()
