@@ -1,0 +1,6 @@
+{
+  "enabled": false,
+  "project_id": "your-firebase-project-id",
+  "api_key": "your-firebase-api-key",
+  "notes": "Firebaseクラウド同期を有効にする場合は enabled: true と設定し、Firebase ConsoleのプロジェクトIDを入力してください。"
+}

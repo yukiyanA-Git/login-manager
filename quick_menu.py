@@ -1,0 +1,99 @@
+from PySide6.QtWidgets import QMenu, QWidget, QApplication
+from PySide6.QtCore import Qt, QPoint
+from PySide6.QtGui import QAction, QFont, QIcon, QColor
+
+class QuickTrayMenu(QMenu):
+    def __init__(self, manager_win, overlay_instance, parent=None):
+        super().__init__(parent)
+        self.manager_win = manager_win
+        self.overlay = overlay_instance
+
+        self.setStyleSheet("""
+            QMenu {
+                background-color: #111827;
+                border: 2px solid #0078D4;
+                border-radius: 10px;
+                color: #F9FAFB;
+                padding: 6px;
+                font-family: 'Segoe UI', 'Meiryo', sans-serif;
+                font-size: 13px;
+            }
+            QMenu::item {
+                padding: 8px 16px;
+                border-radius: 6px;
+                margin: 2px 4px;
+            }
+            QMenu::item:selected {
+                background-color: #0078D4;
+                color: #FFFFFF;
+                font-weight: bold;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #374151;
+                margin: 4px 8px;
+            }
+        """)
+
+        self.build_menu()
+
+    def build_menu(self):
+        self.clear()
+
+        # Header Title
+        title_action = QAction("🔑  ログインマネージャー クイックメニュー", self)
+        title_action.setEnabled(False)
+        self.addAction(title_action)
+        self.addSeparator()
+
+        # 1. High Priority: Register New Account
+        action_register = QAction("➕  新規アカウント登録 (コピー文/画面から)", self)
+        action_register.triggered.connect(self.trigger_register)
+        self.addAction(action_register)
+
+        # 2. High Priority: Smart Search from Clipboard
+        action_search = QAction("🔍  ログイン情報検索 (コピー文 Ctrl+C)", self)
+        action_search.triggered.connect(self.trigger_search)
+        self.addAction(action_search)
+
+        # 3. Screen Overlay OCR Search
+        action_ocr = QAction("📐  画面枠で囲んで検索 (OCR)", self)
+        action_ocr.triggered.connect(self.trigger_ocr)
+        self.addAction(action_ocr)
+
+        self.addSeparator()
+
+        # 4. Open Account Manager Window
+        action_manage = QAction("⚙️  アカウント管理画面を開く", self)
+        action_manage.triggered.connect(self.trigger_manage)
+        self.addAction(action_manage)
+
+        self.addSeparator()
+
+        # 5. Quit App
+        action_quit = QAction("❌  アプリ完全終了", self)
+        action_quit.triggered.connect(QApplication.quit)
+        self.addAction(action_quit)
+
+    def trigger_register(self):
+        clip_text = QApplication.clipboard().text().strip()
+        if clip_text and len(clip_text) < 50:
+            self.manager_win.open_add_dialog(initial_name=clip_text)
+            self.manager_win.show()
+            self.manager_win.raise_()
+            self.manager_win.activateWindow()
+        else:
+            self.overlay.show_overlay_for_register(
+                lambda name: self.manager_win.open_add_dialog(initial_name=name)
+            )
+
+    def trigger_search(self):
+        self.overlay.smart_search()
+
+    def trigger_ocr(self):
+        self.overlay.show_overlay()
+
+    def trigger_manage(self):
+        self.manager_win.show()
+        self.manager_win.raise_()
+        self.manager_win.activateWindow()

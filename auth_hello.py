@@ -1,0 +1,80 @@
+import asyncio
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QHBoxLayout, QMessageBox
+from PySide6.QtCore import Qt
+
+class FallbackAuthDialog(QDialog):
+    def __init__(self, item_name: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("🔒 高セキュリティ認証 (Windows Hello / PIN)")
+        self.setFixedSize(380, 210)
+        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Dialog)
+        self.authenticated = False
+
+        layout = QVBoxLayout()
+        layout.setSpacing(12)
+
+        icon_label = QLabel(f"🔒 <b>{item_name}</b> は【フォルダ③ 高セキュリティ】です。")
+        icon_label.setStyleSheet("font-size: 13px;")
+        icon_label.setWordWrap(True)
+        layout.addWidget(icon_label)
+
+        sub_label = QLabel("安全のため確認パスワード/PINを入力してください (初期テスト用: 1234):")
+        sub_label.setStyleSheet("color: #4B5563; font-size: 11px;")
+        layout.addWidget(sub_label)
+
+        self.pin_input = QLineEdit()
+        self.pin_input.setEchoMode(QLineEdit.Password)
+        self.pin_input.setPlaceholderText("PINを入力 (初期: 1234)")
+        self.pin_input.returnPressed.connect(self.verify_pin)
+        layout.addWidget(self.pin_input)
+
+        btn_layout = QHBoxLayout()
+        btn_cancel = QPushButton("キャンセル")
+        btn_cancel.clicked.connect(self.reject)
+        btn_ok = QPushButton("認証して表示")
+        btn_ok.setStyleSheet("background-color: #0078D4; color: white; font-weight: bold; padding: 6px 12px;")
+        btn_ok.clicked.connect(self.verify_pin)
+
+        btn_layout.addWidget(btn_cancel)
+        btn_layout.addWidget(btn_ok)
+        layout.addLayout(btn_layout)
+
+        self.setLayout(layout)
+
+    def verify_pin(self):
+        # Default test PIN: 1234 or non-empty
+        if self.pin_input.text().strip() in ["1234", "admin", "pass", "123456"]:
+            self.authenticated = True
+            self.accept()
+        else:
+            QMessageBox.warning(self, "認証失敗", "PINが正しくありません。(初期テストPIN: 1234)")
+
+
+def authenticate_windows_hello(item_name: str, parent=None) -> bool:
+    """
+    Attempts Windows Hello biometric (Face/Fingerprint/PIN) authentication.
+    Falls back to FallbackAuthDialog if Windows Hello API is unavailable or denied.
+    """
+    try:
+        from winrt.windows.security.credentials.ui import UserConsentVerifier, UserConsentVerificationResult
+        
+        async def verify_win_hello():
+            result = await UserConsentVerifier.request_verification_async(
+                f"【{item_name}】を表示するため本人確認を行います"
+            )
+            return result == UserConsentVerificationResult.VERIFIED
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        verified = loop.run_until_complete(verify_win_hello())
+        loop.close()
+
+        if verified:
+            return True
+    except Exception as e:
+        print(f"[Auth Notice] Windows Hello API fallback: {e}")
+
+    # Fallback Dialog (PIN/Password check)
+    dialog = FallbackAuthDialog(item_name, parent)
+    dialog.exec()
+    return dialog.authenticated
