@@ -63,19 +63,21 @@ class GoogleAuthDialog(QDialog):
 
 
 class AccountAddDialog(QDialog):
-    def __init__(self, initial_name: str = "", logo_b64: str = "", overlay_callback=None, parent=None):
+    def __init__(self, initial_name: str = "", logo_b64: str = "", edit_data: dict = None, overlay_callback=None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("新しいログイン情報の登録")
+        self.edit_data = edit_data
+        is_edit = bool(edit_data)
+
+        self.setWindowTitle("✏️ アカウント情報の編集" if is_edit else "新しいログイン情報の登録")
         self.setFixedWidth(450)
         self.overlay_callback = overlay_callback
-        self.logo_b64 = logo_b64
-        self.extra_expanded = False
+        self.logo_b64 = logo_b64 or (edit_data.get("logo_image", "") if edit_data else "")
+        self.extra_expanded = is_edit
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
-        # Logo badge if screen captured
-        if logo_b64:
+        if self.logo_b64:
             logo_label = QLabel("🖼️ 画面上のロゴ画像キャプチャ保存済み")
             logo_label.setStyleSheet("color: #10B981; font-weight: bold; font-size: 11px;")
             layout.addWidget(logo_label)
@@ -88,7 +90,9 @@ class AccountAddDialog(QDialog):
         self.name_input.setPlaceholderText("例: Sansan, マネーフォワード, Amazon")
 
         clip_text = QApplication.clipboard().text().strip()
-        if initial_name:
+        if is_edit:
+            self.name_input.setText(edit_data.get("name", ""))
+        elif initial_name:
             self.name_input.setText(initial_name)
         elif clip_text and len(clip_text) < 50:
             self.name_input.setText(clip_text)
@@ -103,21 +107,29 @@ class AccountAddDialog(QDialog):
 
         self.user_input = QLineEdit()
         self.user_input.setPlaceholderText("例: user@example.com / ID")
+        if is_edit:
+            self.user_input.setText(edit_data.get("username", ""))
         form_layout.addRow("ID / メール *:", self.user_input)
 
         self.pass_input = QLineEdit()
         self.pass_input.setEchoMode(QLineEdit.Password)
         self.pass_input.setPlaceholderText("パスワード")
+        if is_edit:
+            self.pass_input.setText(edit_data.get("password", ""))
         form_layout.addRow("パスワード *:", self.pass_input)
 
         self.level_combo = QComboBox()
         self.level_combo.addItem("🟢 セキュリティ：低 (認証なし・すぐ表示)", 1)
         self.level_combo.addItem("🔒 セキュリティ：高 (顔認証/指紋/PINを要求)", 3)
+        if is_edit:
+            idx = self.level_combo.findData(edit_data.get("security_level", 1))
+            if idx >= 0:
+                self.level_combo.setCurrentIndex(idx)
         form_layout.addRow("セキュリティレベル *:", self.level_combo)
 
         layout.addLayout(form_layout)
 
-        self.btn_toggle_extra = QPushButton("＋ 製品名(別名)・備考・秘密の質問を追加 (オプション)")
+        self.btn_toggle_extra = QPushButton("－ 詳細・製品名(別名)を隠す (▲)" if is_edit else "＋ 製品名(別名)・備考・秘密の質問を追加 (オプション)")
         self.btn_toggle_extra.setStyleSheet("background-color: #374151; color: #F3F4F6; font-size: 11px;")
         self.btn_toggle_extra.clicked.connect(self.toggle_extra_fields)
         layout.addWidget(self.btn_toggle_extra)
@@ -129,25 +141,37 @@ class AccountAddDialog(QDialog):
 
         self.alias1_input = QLineEdit()
         self.alias1_input.setPlaceholderText("例: Eight (ログイン画面に製品名がある場合)")
+        if is_edit:
+            self.alias1_input.setText(edit_data.get("alias1", ""))
 
         self.alias2_input = QLineEdit()
         self.alias2_input.setPlaceholderText("例: MFクラウド")
+        if is_edit:
+            self.alias2_input.setText(edit_data.get("alias2", ""))
 
         self.notes_input = QTextEdit()
         self.notes_input.setPlaceholderText("メモ、契約番号、第2パスワードなど")
         self.notes_input.setFixedHeight(45)
+        if is_edit:
+            self.notes_input.setPlainText(edit_data.get("notes", ""))
 
         self.sec_q_input = QLineEdit()
         self.sec_q_input.setPlaceholderText("例: 母親の旧姓 / 初めて飼ったペット")
+        if is_edit:
+            self.sec_q_input.setText(edit_data.get("sec_question", ""))
 
         self.sec_a_input = QLineEdit()
         self.sec_a_input.setPlaceholderText("秘密の質問の答え")
+        if is_edit:
+            self.sec_a_input.setText(edit_data.get("sec_answer", ""))
 
         self.category_input = QLineEdit()
-        self.category_input.setText("一般")
+        self.category_input.setText(edit_data.get("category", "一般") if is_edit else "一般")
 
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("https://...")
+        if is_edit:
+            self.url_input.setText(edit_data.get("url", ""))
 
         extra_form.addRow("製品名 / 別名1:", self.alias1_input)
         extra_form.addRow("製品名 / 別名2:", self.alias2_input)
@@ -157,13 +181,13 @@ class AccountAddDialog(QDialog):
         extra_form.addRow("カテゴリー:", self.category_input)
         extra_form.addRow("URL:", self.url_input)
 
-        self.extra_widget.setVisible(False)
+        self.extra_widget.setVisible(self.extra_expanded)
         layout.addWidget(self.extra_widget)
 
         btn_box = QHBoxLayout()
         btn_cancel = QPushButton("キャンセル")
         btn_cancel.clicked.connect(self.reject)
-        btn_save = QPushButton("保存")
+        btn_save = QPushButton("更新保存" if is_edit else "保存")
         btn_save.setStyleSheet("background-color: #0078D4; color: white; font-weight: bold; padding: 6px 16px;")
         btn_save.clicked.connect(self.accept)
 
@@ -220,7 +244,7 @@ class AccountManagerWindow(QMainWindow):
         self.overlay = overlay_instance
 
         self.setWindowTitle("ログインマネージャー - アカウント管理 & Googleクラウド同期")
-        self.resize(880, 540)
+        self.resize(900, 540)
         self.init_ui()
 
     def init_ui(self):
@@ -338,11 +362,55 @@ class AccountManagerWindow(QMainWindow):
             self.table.setItem(row, 3, item_sec)
             self.table.setItem(row, 4, item_notes)
 
+            # Action Buttons (Edit + Delete)
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(2, 2, 2, 2)
+            action_layout.setSpacing(4)
+
+            btn_edit = QPushButton("✏️ 編集")
+            btn_edit.setStyleSheet("background-color: #0078D4; color: white; padding: 2px 8px; font-weight: bold;")
+            acc_data = acc
+            btn_edit.clicked.connect(lambda _, a=acc_data: self.edit_acc(a))
+
             btn_delete = QPushButton("削除")
             btn_delete.setStyleSheet("background-color: #EF4444; color: white; padding: 2px 8px;")
             acc_id = acc.get("id")
             btn_delete.clicked.connect(lambda _, a_id=acc_id: self.delete_acc(a_id))
-            self.table.setCellWidget(row, 5, btn_delete)
+
+            action_layout.addWidget(btn_edit)
+            action_layout.addWidget(btn_delete)
+            self.table.setCellWidget(row, 5, action_widget)
+
+    def edit_acc(self, acc_data: dict):
+        overlay_cb = self.overlay.show_overlay_for_register if self.overlay else None
+        dialog = AccountAddDialog(edit_data=acc_data, overlay_callback=overlay_cb, parent=self)
+        if dialog.exec() == QDialog.Accepted:
+            new_data = dialog.get_data()
+            if new_data["name"]:
+                acc_data["name"] = new_data["name"]
+                acc_data["username"] = new_data["username"]
+                acc_data["password"] = new_data["password"]
+                acc_data["security_level"] = new_data["security_level"]
+                acc_data["category"] = new_data["category"]
+                acc_data["url"] = new_data["url"]
+                acc_data["notes"] = new_data["notes"]
+                acc_data["sec_question"] = new_data["sec_question"]
+                acc_data["sec_answer"] = new_data["sec_answer"]
+                acc_data["alias1"] = new_data["alias1"]
+                acc_data["alias2"] = new_data["alias2"]
+                if new_data["logo_image"]:
+                    acc_data["logo_image"] = new_data["logo_image"]
+
+                aliases = [new_data["name"].lower()]
+                if new_data["alias1"]:
+                    aliases.append(new_data["alias1"].lower())
+                if new_data["alias2"]:
+                    aliases.append(new_data["alias2"].lower())
+                acc_data["aliases"] = aliases
+
+                self.vault.save_vault()
+                self.refresh_table()
 
     def open_add_dialog(self, initial_name: str = "", logo_b64: str = ""):
         overlay_cb = self.overlay.show_overlay_for_register if self.overlay else None
