@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import hashlib
 from typing import Dict, List, Optional
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), "firebase_config.json")
@@ -8,11 +9,14 @@ CONFIG_FILE = os.path.join(os.path.dirname(__file__), "firebase_config.json")
 class FirebaseClient:
     def __init__(self):
         self.enabled = True
-        self.project_id = "login-manager-official" # Default official project ID
+        self.project_id = "login-manager-official"
         self.user_id = ""
         self.user_email = ""
-        self.id_token = ""
+        self.master_pin_hash = ""
         self.load_config()
+
+    def _hash_pin(self, pin_str: str) -> str:
+        return hashlib.sha256(pin_str.strip().encode("utf-8")).hexdigest()
 
     def load_config(self):
         if not os.path.exists(CONFIG_FILE):
@@ -21,6 +25,7 @@ class FirebaseClient:
                 "project_id": "login-manager-official",
                 "user_id": "",
                 "user_email": "",
+                "master_pin_hash": self._hash_pin("1234"),
                 "notes": "Googleアカウント認証＆個人のFirestoreデータ保護設定"
             }
             try:
@@ -37,17 +42,32 @@ class FirebaseClient:
                 self.project_id = data.get("project_id", "login-manager-official")
                 self.user_id = data.get("user_id", "")
                 self.user_email = data.get("user_email", "")
+                self.master_pin_hash = data.get("master_pin_hash", self._hash_pin("1234"))
         except Exception as e:
             print(f"Error loading Firebase config: {e}")
+            self.master_pin_hash = self._hash_pin("1234")
+
+    def save_master_pin(self, new_pin: str):
+        """Hashes and saves new custom Master PIN locally and syncs to Google Cloud."""
+        self.master_pin_hash = self._hash_pin(new_pin)
+        self.save_user_session(user_email=self.user_email, user_id=self.user_id)
+
+    def verify_master_pin(self, typed_pin: str) -> bool:
+        """Verifies typed PIN against stored master_pin_hash or default 1234."""
+        typed_hash = self._hash_pin(typed_pin)
+        if typed_hash == self.master_pin_hash:
+            return True
+        # Fallback default check for 1234 if not customized yet
+        if typed_pin in ["1234"] and (not self.master_pin_hash or self.master_pin_hash == self._hash_pin("1234")):
+            return True
+        return False
 
     def save_user_session(self, user_email: str, user_id: str = ""):
-        """Saves active Google Account session for per-user cloud isolation."""
         self.user_email = user_email.strip()
-        # Generate clean deterministic user_id from email if not provided
-        if not user_id:
+        if not user_id and user_email:
             safe_id = user_email.lower().replace("@", "_at_").replace(".", "_")
             self.user_id = f"usr_{safe_id}"
-        else:
+        elif user_id:
             self.user_id = user_id
 
         self.enabled = True
@@ -56,6 +76,7 @@ class FirebaseClient:
             "project_id": self.project_id,
             "user_id": self.user_id,
             "user_email": self.user_email,
+            "master_pin_hash": self.master_pin_hash,
             "notes": "Googleアカウント認証アクティブ"
         }
         try:
@@ -64,8 +85,21 @@ class FirebaseClient:
         except Exception as e:
             print(f"Error saving user session: {e}")
 
+        # Also sync settings to Cloud if user_id exists
+        if self.user_id and self.project_id:
+            try:
+                url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{self.user_id}/settings/pin_config"
+                body = {
+                    "fields": {
+                        "master_pin_hash": {"stringValue": self.master_pin_hash},
+                        "user_email": {"stringValue": self.user_email}
+                    }
+                }
+                requests.patch(url, json=body, timeout=4)
+            except Exception as e:
+                print(f"Error syncing master PIN to cloud: {e}")
+
     def logout_user(self):
-        """Logs out the active user session, reverting to local-only mode."""
         self.user_email = ""
         self.user_id = ""
         data = {
@@ -73,6 +107,7 @@ class FirebaseClient:
             "project_id": self.project_id,
             "user_id": "",
             "user_email": "",
+            "master_pin_hash": self.master_pin_hash,
             "notes": "ログアウト状態 (ローカル保存のみ)"
         }
         try:
@@ -82,11 +117,6 @@ class FirebaseClient:
             print(f"Error saving logout session: {e}")
 
     def sync_to_cloud(self, accounts: List[Dict]) -> bool:
-        """
-        Per-User Cloud Sync:
-        Saves accounts under /users/{user_id}/accounts/{acc_id}
-        Ensuring 100% strict data isolation per Google Account.
-        """
         if not self.enabled or not self.user_id or not self.project_id:
             return False
 
@@ -107,7 +137,8 @@ class FirebaseClient:
                     "notes": {"stringValue": acc.get("notes", "")},
                     "sec_question": {"stringValue": acc.get("sec_question", "")},
                     "sec_answer": {"stringValue": acc.get("sec_answer", "")},
-                    "url": {"stringValue": acc.get("url", "")}
+                    "url": {"stringValue": acc.get("url", "")},
+                    "logo_image": {"stringValue": acc.get("logo_image", "")}
                 }
                 body = {"fields": fields}
                 response = requests.patch(doc_url, json=body, timeout=5)
@@ -118,13 +149,22 @@ class FirebaseClient:
             return False
 
     def fetch_from_cloud(self) -> Optional[List[Dict]]:
-        """
-        Fetches accounts for the logged-in user from /users/{user_id}/accounts
-        """
         if not self.enabled or not self.user_id or not self.project_id:
             return None
 
         try:
+            # Fetch master_pin_hash from Cloud if available
+            try:
+                settings_url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{self.user_id}/settings/pin_config"
+                s_resp = requests.get(settings_url, timeout=3)
+                if s_resp.status_code == 200:
+                    s_data = s_resp.json()
+                    c_hash = s_data.get("fields", {}).get("master_pin_hash", {}).get("stringValue", "")
+                    if c_hash:
+                        self.master_pin_hash = c_hash
+            except Exception as e:
+                print(f"Error fetching master PIN from cloud: {e}")
+
             url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{self.user_id}/accounts"
             resp = requests.get(url, timeout=5)
             if resp.status_code == 200:
@@ -159,6 +199,7 @@ class FirebaseClient:
                         "sec_question": fields.get("sec_question", {}).get("stringValue", ""),
                         "sec_answer": fields.get("sec_answer", {}).get("stringValue", ""),
                         "url": fields.get("url", {}).get("stringValue", ""),
+                        "logo_image": fields.get("logo_image", {}).get("stringValue", ""),
                         "aliases": aliases
                     }
                     accounts.append(acc)

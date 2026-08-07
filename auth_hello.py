@@ -1,30 +1,32 @@
 import asyncio
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QHBoxLayout, QMessageBox
 from PySide6.QtCore import Qt
+from firebase_client import FirebaseClient
 
 class FallbackAuthDialog(QDialog):
     def __init__(self, item_name: str, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("🔒 高セキュリティ認証 (Windows Hello / PIN)")
-        self.setFixedSize(380, 210)
+        self.firebase = FirebaseClient()
+        self.setWindowTitle("🔒 高セキュリティ認証 (Windows Hello / 予備マスターPIN)")
+        self.setFixedSize(390, 210)
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Dialog)
         self.authenticated = False
 
         layout = QVBoxLayout()
         layout.setSpacing(12)
 
-        icon_label = QLabel(f"🔒 <b>{item_name}</b> は【高セキュリティ】です。")
+        icon_label = QLabel(f"🔒 <b>{item_name}</b> は【高セキュリティ保護】です。")
         icon_label.setStyleSheet("font-size: 13px;")
         icon_label.setWordWrap(True)
         layout.addWidget(icon_label)
 
-        sub_label = QLabel("安全のため確認パスワード/PINを入力してください (初期テスト用: 1234):")
+        sub_label = QLabel("予備マスターPINまたはパスワードを入力してください:")
         sub_label.setStyleSheet("color: #4B5563; font-size: 11px;")
         layout.addWidget(sub_label)
 
         self.pin_input = QLineEdit()
         self.pin_input.setEchoMode(QLineEdit.Password)
-        self.pin_input.setPlaceholderText("PINを入力 (初期: 1234)")
+        self.pin_input.setPlaceholderText("予備マスターPINを入力 (初期: 1234)")
         self.pin_input.returnPressed.connect(self.verify_pin)
         layout.addWidget(self.pin_input)
 
@@ -42,11 +44,12 @@ class FallbackAuthDialog(QDialog):
         self.setLayout(layout)
 
     def verify_pin(self):
-        if self.pin_input.text().strip() in ["1234", "admin", "pass", "123456"]:
+        typed = self.pin_input.text().strip()
+        if self.firebase.verify_master_pin(typed):
             self.authenticated = True
             self.accept()
         else:
-            QMessageBox.warning(self, "認証失敗", "PINが正しくありません。(初期テストPIN: 1234)")
+            QMessageBox.warning(self, "認証失敗", "マスターPINが正しくありません。")
 
 def authenticate_windows_hello(item_name: str, parent=None) -> bool:
     try:
