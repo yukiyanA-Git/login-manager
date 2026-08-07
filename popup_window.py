@@ -1,3 +1,4 @@
+import webbrowser
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QFrame, QApplication, QTextEdit
 )
@@ -64,7 +65,7 @@ class FloatingPopupWindow(QWidget):
         self.layout.setContentsMargins(16, 12, 16, 12)
         self.layout.setSpacing(8)
 
-        # Header bar
+        # Header bar with optional URL web launcher
         header_layout = QHBoxLayout()
         name_label = QLabel(f"🏢 <b>{self.account_data.get('name', 'サービス名')}</b>")
         name_label.setFont(QFont("Segoe UI", 12, QFont.Bold))
@@ -82,11 +83,19 @@ class FloatingPopupWindow(QWidget):
 
         header_layout.addWidget(name_label)
         header_layout.addWidget(badge)
+
+        url_str = self.account_data.get("url", "")
+        if url_str:
+            btn_open_url = QPushButton("🌐 サイトを開く")
+            btn_open_url.setStyleSheet("background-color: #4F46E5; color: white; font-size: 10px; font-weight: bold; padding: 2px 8px;")
+            btn_open_url.clicked.connect(self.open_url)
+            header_layout.addWidget(btn_open_url)
+
         header_layout.addStretch()
         header_layout.addWidget(btn_close)
         self.layout.addLayout(header_layout)
 
-        # ID Line with prominent 1-click copy button
+        # ID Line
         id_layout = QHBoxLayout()
         id_label = QLabel("ID / メール:")
         id_label.setFixedWidth(75)
@@ -102,7 +111,7 @@ class FloatingPopupWindow(QWidget):
         id_layout.addWidget(btn_copy_id)
         self.layout.addLayout(id_layout)
 
-        # Password Line with prominent 1-click copy button
+        # Password Line
         pass_layout = QHBoxLayout()
         pass_label = QLabel("パスワード:")
         pass_label.setFixedWidth(75)
@@ -171,6 +180,13 @@ class FloatingPopupWindow(QWidget):
         self.toast_label.setAlignment(Qt.AlignCenter)
         self.toast_label.setStyleSheet("color: #34D399; font-size: 11px; font-weight: bold;")
         self.layout.addWidget(self.toast_label)
+
+    def open_url(self):
+        url = self.account_data.get("url", "")
+        if url:
+            if not url.startswith("http://") and not url.startswith("https://"):
+                url = "https://" + url
+            webbrowser.open(url)
 
     def toggle_notes(self):
         self.notes_expanded = not self.notes_expanded
