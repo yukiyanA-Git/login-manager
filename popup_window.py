@@ -3,7 +3,6 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer, QPoint
 from PySide6.QtGui import QFont, QClipboard
-from auto_typer import auto_fill_credentials
 
 class FloatingPopupWindow(QWidget):
     def __init__(self, account_data: dict, pos: QPoint = None, parent=None):
@@ -15,19 +14,19 @@ class FloatingPopupWindow(QWidget):
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFixedWidth(360)
-        self.setFixedHeight(250)
+        self.setFixedHeight(230)
 
         if pos:
             screen = QApplication.primaryScreen().geometry()
             x = min(pos.x() + 10, screen.width() - 370)
-            y = min(pos.y() + 10, screen.height() - 320)
+            y = min(pos.y() + 10, screen.height() - 300)
             self.move(max(10, x), max(10, y))
 
         self.init_ui()
 
     def init_ui(self):
         self.main_frame = QFrame(self)
-        self.main_frame.setGeometry(0, 0, 360, 250)
+        self.main_frame.setGeometry(0, 0, 360, 230)
         self.main_frame.setStyleSheet("""
             QFrame {
                 background-color: #111827;
@@ -87,31 +86,15 @@ class FloatingPopupWindow(QWidget):
         header_layout.addWidget(btn_close)
         self.layout.addLayout(header_layout)
 
-        # Auto-Fill / Auto-Type Bar
-        btn_auto_fill = QPushButton("⚡ ブラウザの入力欄へ自動入力 (ID ➔ Tab ➔ Pass)")
-        btn_auto_fill.setStyleSheet("""
-            QPushButton {
-                background-color: #059669;
-                color: white;
-                font-weight: bold;
-                padding: 6px;
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: #10B981;
-            }
-        """)
-        btn_auto_fill.clicked.connect(self.trigger_auto_fill)
-        self.layout.addWidget(btn_auto_fill)
-
-        # ID Line
+        # ID Line with prominent 1-click copy button
         id_layout = QHBoxLayout()
         id_label = QLabel("ID / メール:")
         id_label.setFixedWidth(75)
         self.id_field = QLineEdit(self.account_data.get('username', ''))
         self.id_field.setReadOnly(True)
 
-        btn_copy_id = QPushButton("📋 コピー")
+        btn_copy_id = QPushButton("📋 IDをコピー")
+        btn_copy_id.setStyleSheet("background-color: #059669; color: white; font-weight: bold;")
         btn_copy_id.clicked.connect(self.copy_id)
 
         id_layout.addWidget(id_label)
@@ -119,7 +102,7 @@ class FloatingPopupWindow(QWidget):
         id_layout.addWidget(btn_copy_id)
         self.layout.addLayout(id_layout)
 
-        # Password Line
+        # Password Line with prominent 1-click copy button
         pass_layout = QHBoxLayout()
         pass_label = QLabel("パスワード:")
         pass_label.setFixedWidth(75)
@@ -132,8 +115,8 @@ class FloatingPopupWindow(QWidget):
         btn_toggle.setFixedWidth(30)
         btn_toggle.clicked.connect(self.toggle_password_visibility)
 
-        btn_copy_pass = QPushButton("📋 コピー")
-        btn_copy_pass.setStyleSheet("background-color: #2563EB; color: white;")
+        btn_copy_pass = QPushButton("📋 パスワードコピー")
+        btn_copy_pass.setStyleSheet("background-color: #2563EB; color: white; font-weight: bold;")
         btn_copy_pass.clicked.connect(self.copy_password)
 
         pass_layout.addWidget(pass_label)
@@ -189,24 +172,17 @@ class FloatingPopupWindow(QWidget):
         self.toast_label.setStyleSheet("color: #34D399; font-size: 11px; font-weight: bold;")
         self.layout.addWidget(self.toast_label)
 
-    def trigger_auto_fill(self):
-        username = self.account_data.get('username', '')
-        password = self.account_data.get('password', '')
-        # Hide popup window immediately so focus returns to the underlying browser input field!
-        self.hide()
-        auto_fill_credentials(username, password, auto_submit=False, delay_ms=300)
-
     def toggle_notes(self):
         self.notes_expanded = not self.notes_expanded
         self.notes_container.setVisible(self.notes_expanded)
         if self.notes_expanded:
             self.btn_expand_notes.setText("📝 備考・秘密の質問を閉じる (▲)")
-            self.setFixedHeight(360)
-            self.main_frame.setFixedHeight(360)
+            self.setFixedHeight(340)
+            self.main_frame.setFixedHeight(340)
         else:
             self.btn_expand_notes.setText("📝 備考・秘密の質問を表示 (▼)")
-            self.setFixedHeight(250)
-            self.main_frame.setFixedHeight(250)
+            self.setFixedHeight(230)
+            self.main_frame.setFixedHeight(230)
 
     def toggle_password_visibility(self):
         self.password_visible = not self.password_visible
@@ -216,10 +192,10 @@ class FloatingPopupWindow(QWidget):
             self.pass_field.setEchoMode(QLineEdit.Password)
 
     def copy_id(self):
-        self.copy_text(self.account_data.get('username', ''), "IDをクリップボードにコピーしました！")
+        self.copy_text(self.account_data.get('username', ''), "📋 IDをコピーしました！(Ctrl+Vで貼り付け)")
 
     def copy_password(self):
-        self.copy_text(self.account_data.get('password', ''), "パスワードをコピーしました！")
+        self.copy_text(self.account_data.get('password', ''), "📋 パスワードをコピーしました！(Ctrl+Vで貼り付け)")
 
     def copy_text(self, text: str, toast_msg: str):
         clipboard = QApplication.clipboard()

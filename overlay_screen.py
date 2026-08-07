@@ -1,14 +1,16 @@
 import os
 from PySide6.QtWidgets import (
-    QWidget, QRubberBand, QMessageBox, QApplication, QInputDialog
+    QWidget, QRubberBand, QMessageBox, QApplication
 )
 from PySide6.QtCore import Qt, QRect, QPoint, QTimer
-from PySide6.QtGui import QPainter, QColor, QBrush, QCursor, QFont
+from PySide6.QtGui import QPainter, QColor, QCursor, QFont
+from PIL import ImageGrab
 
 from ocr_engine import WinRTOcrEngine
 from popup_window import FloatingPopupWindow
 from auth_hello import WindowsHelloAuthenticator
 from win_title_helper import get_active_window_title
+from logo_matcher import pil_to_base64
 
 class ScreenSelectionOverlay(QWidget):
     def __init__(self, vault_instance, parent=None):
@@ -32,12 +34,6 @@ class ScreenSelectionOverlay(QWidget):
         self.popup_win = None
 
     def smart_search(self):
-        """
-        Smart 2-Step Search without intrusive OCR popups:
-        Step 1: Check Clipboard text (Ctrl+C). If matched, show popup instantly!
-        Step 2: Check Active Window Title (e.g., 'MUFG Biz ログイン'). If matched, show popup instantly!
-        Step 3: If no match found, prompt user with options (Manual Search / OCR Screen Framing / Register).
-        """
         # Step 1: Clipboard Text Check
         clip_text = QApplication.clipboard().text().strip()
         if clip_text and len(clip_text) < 100:
@@ -47,12 +43,12 @@ class ScreenSelectionOverlay(QWidget):
                 self.handle_account_found(matched_acc)
                 return
 
-        # Step 2: Active Window Title Check (e.g. "MUFG Biz ログイン", "BizSTATION")
+        # Step 2: Active Window Title Check
         win_title = get_active_window_title()
         if win_title:
             matched_acc = self.vault.find_account_by_window_title(win_title)
             if matched_acc:
-                print(f"[Smart Search] Active Window Title matched: '{win_title}' -> {matched_acc.get('name')}")
+                print(f"[Smart Search] Window title matched: '{win_title}' -> {matched_acc.get('name')}")
                 self.handle_account_found(matched_acc)
                 return
 
@@ -61,8 +57,8 @@ class ScreenSelectionOverlay(QWidget):
         reply = QMessageBox.question(
             None,
             "ログイン検索 - 見つかりませんでした",
-            f"コピーした文字列または画面【{hint_str}】に該当する登録情報が見つかりませんでした。\n\n"
-            f"画面上のロゴや文字を四角い枠で囲んでOCR検索（画面キャプチャ）を行いますか？",
+            f"コピーした文字または画面タイトル【{hint_str}】に該当する登録情報が見つかりませんでした。\n\n"
+            f"画面上のロゴやアイコン枠をドラッグして、画像/OCR読み込み検索を行いますか？",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes
         )
@@ -95,7 +91,7 @@ class ScreenSelectionOverlay(QWidget):
 
         painter.setPen(QColor(255, 255, 255))
         painter.setFont(QFont("Segoe UI", 14, QFont.Bold))
-        text = "➕ 画面上の会社名ロゴをドラッグして自動入力登録" if self.is_register_mode else "🔍 画面上の文字/ロゴをドラッグして枠で囲む (ESCキーでキャンセル)"
+        text = "➕ 画面上の会社名ロゴ/アイコンをドラッグして自動入力登録" if self.is_register_mode else "🔍 画面上の文字/ロゴマークをドラッグして囲む (ESCキーでキャンセル)"
         painter.drawText(20, 40, text)
 
     def mousePressEvent(self, event):
@@ -128,7 +124,6 @@ class ScreenSelectionOverlay(QWidget):
     def process_selection(self, rect: QRect):
         cursor_pos = QCursor.pos()
 
-        # High-DPI screen scaling
         screen = QApplication.primaryScreen()
         dpr = screen.devicePixelRatio()
 
@@ -137,26 +132,44 @@ class ScreenSelectionOverlay(QWidget):
         w = int(rect.width() * dpr)
         h = int(rect.height() * dpr)
 
+        # Capture cropped PIL Image
+        try:
+            bbox = (x, y, x + w, y + h)
+            captured_img = ImageGrab.grab(bbox=bbox)
+            captured_b64 = pil_to_base64(captured_img)
+        except Exception as e:
+            print(f"Error capturing image region: {e}")
+            captured_img = None
+            captured_b64 = ""
+
         detected_text = self.ocr.recognize_region(x, y, w, h)
-        print(f"[OCR Detected]: '{detected_text}'")
+        print(f"[OCR Text Detected]: '{detected_text}'")
 
         if self.is_register_mode:
             if self.register_callback:
-                self.register_callback(detected_text)
+                self.register_callback(detected_text, captured_b64)
             return
 
-        if not detected_text:
-            QMessageBox.warning(None, "読み取りエラー", "選択範囲から文字を認識できませんでした。\nもう一度枠を広げて囲んでみてください。")
-            return
+        # 1. Try text OCR match first
+        if detected_text:
+            matched_acc = self.vault.find_account_by_name(detected_text)
+            if matched_acc:
+                print(f"[Search Result] Text OCR match: '{detected_text}' -> {matched_acc.get('name')}")
+                self.handle_account_found(matched_acc, cursor_pos)
+                return
 
-        matched_acc = self.vault.find_account_by_name(detected_text)
-        if matched_acc:
-            self.handle_account_found(matched_acc, cursor_pos)
-        else:
-            QMessageBox.information(
-                None, "未登録",
-                f"認識された文字: 「{detected_text}」\n\n該当するアカウント情報は未登録です。「アカウント管理」画面から新規追加を行ってください。"
-            )
+        # 2. Try Visual Logo Image Similarity match
+        if captured_img:
+            logo_matched_acc = self.vault.find_account_by_logo(captured_img)
+            if logo_matched_acc:
+                print(f"[Search Result] Visual Logo Image match: -> {logo_matched_acc.get('name')}")
+                self.handle_account_found(logo_matched_acc, cursor_pos)
+                return
+
+        QMessageBox.information(
+            None, "未登録",
+            f"認識された文字/ロゴ: 「{detected_text if detected_text else '画像ロゴ'}」\n\n該当するアカウント情報は未登録です。「アカウント管理」画面から新規追加を行ってください。"
+        )
 
     def handle_account_found(self, acc_data: dict, pos: QPoint = None):
         if not pos:
@@ -164,7 +177,6 @@ class ScreenSelectionOverlay(QWidget):
 
         sec_level = acc_data.get("security_level", 1)
         if sec_level == 3:
-            # Requires Windows Hello / PIN
             service_name = acc_data.get("name", "アカウント")
             is_authed = self.authenticator.authenticate(
                 reason=f"「{service_name}」のパスワード閲覧セキュリティ保護"

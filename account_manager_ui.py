@@ -63,15 +63,22 @@ class GoogleAuthDialog(QDialog):
 
 
 class AccountAddDialog(QDialog):
-    def __init__(self, initial_name: str = "", overlay_callback=None, parent=None):
+    def __init__(self, initial_name: str = "", logo_b64: str = "", overlay_callback=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("新しいログイン情報の登録")
         self.setFixedWidth(450)
         self.overlay_callback = overlay_callback
+        self.logo_b64 = logo_b64
         self.extra_expanded = False
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
+
+        # Logo badge if screen captured
+        if logo_b64:
+            logo_label = QLabel("🖼️ 画面上のロゴ画像キャプチャ保存済み")
+            logo_label.setStyleSheet("color: #10B981; font-weight: bold; font-size: 11px;")
+            layout.addWidget(logo_label)
 
         form_layout = QFormLayout()
         form_layout.setSpacing(10)
@@ -182,9 +189,11 @@ class AccountAddDialog(QDialog):
             self.hide()
             self.overlay_callback(self.set_company_name_and_reopen)
 
-    def set_company_name_and_reopen(self, detected_name: str):
+    def set_company_name_and_reopen(self, detected_name: str, logo_b64: str = ""):
         if detected_name:
             self.name_input.setText(detected_name)
+        if logo_b64:
+            self.logo_b64 = logo_b64
         self.show()
 
     def get_data(self):
@@ -199,7 +208,8 @@ class AccountAddDialog(QDialog):
             "sec_question": self.sec_q_input.text().strip(),
             "sec_answer": self.sec_a_input.text().strip(),
             "category": self.category_input.text().strip(),
-            "url": self.url_input.text().strip()
+            "url": self.url_input.text().strip(),
+            "logo_image": self.logo_b64
         }
 
 
@@ -210,7 +220,7 @@ class AccountManagerWindow(QMainWindow):
         self.overlay = overlay_instance
 
         self.setWindowTitle("ログインマネージャー - アカウント管理 & Googleクラウド同期")
-        self.resize(850, 540)
+        self.resize(880, 540)
         self.init_ui()
 
     def init_ui(self):
@@ -218,7 +228,6 @@ class AccountManagerWindow(QMainWindow):
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
 
-        # Header Info & Google Account Status
         header_box = QGroupBox("クラウド連携 ＆ 同期ステータス")
         header_layout = QHBoxLayout(header_box)
 
@@ -265,8 +274,8 @@ class AccountManagerWindow(QMainWindow):
         main_layout.addLayout(action_layout)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["会社名 (製品名)", "ID / ユーザー名", "セキュリティ設定", "備考 / 秘密の質問", "操作"])
+        self.table.setColumnCount(6)
+        self.table.setHorizontalHeaderLabels(["会社名 (製品名)", "ロゴ画像", "ID / ユーザー名", "セキュリティ設定", "備考 / 秘密の質問", "操作"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         main_layout.addWidget(self.table)
 
@@ -282,7 +291,6 @@ class AccountManagerWindow(QMainWindow):
                 status_text = "🟡 未サインイン (ローカル保存のみ)"
             self.status_label.setText(status_text)
 
-            # Reload cloud vault for this user
             cloud_accs = self.vault.firebase.fetch_from_cloud()
             if cloud_accs:
                 self.vault.accounts = cloud_accs
@@ -308,30 +316,37 @@ class AccountManagerWindow(QMainWindow):
             if aliases:
                 display_name += f" ({', '.join(aliases)})"
 
+            has_logo = "🖼️ あり" if acc.get("logo_image") else "なし"
             has_notes = "あり 📝" if (acc.get("notes") or acc.get("sec_question")) else "なし"
 
             item_name = QTableWidgetItem(display_name)
+            item_logo = QTableWidgetItem(has_logo)
             item_user = QTableWidgetItem(acc.get("username", ""))
             item_sec = QTableWidgetItem(sec_text)
             item_notes = QTableWidgetItem(has_notes)
+
+            if acc.get("logo_image"):
+                item_logo.setForeground(QColor("#059669"))
+                item_logo.setFont(QFont("Segoe UI", 9, QFont.Bold))
 
             if sec_level == 3:
                 item_sec.setForeground(QColor("#D97706"))
 
             self.table.setItem(row, 0, item_name)
-            self.table.setItem(row, 1, item_user)
-            self.table.setItem(row, 2, item_sec)
-            self.table.setItem(row, 3, item_notes)
+            self.table.setItem(row, 1, item_logo)
+            self.table.setItem(row, 2, item_user)
+            self.table.setItem(row, 3, item_sec)
+            self.table.setItem(row, 4, item_notes)
 
             btn_delete = QPushButton("削除")
             btn_delete.setStyleSheet("background-color: #EF4444; color: white; padding: 2px 8px;")
             acc_id = acc.get("id")
             btn_delete.clicked.connect(lambda _, a_id=acc_id: self.delete_acc(a_id))
-            self.table.setCellWidget(row, 4, btn_delete)
+            self.table.setCellWidget(row, 5, btn_delete)
 
-    def open_add_dialog(self, initial_name: str = ""):
+    def open_add_dialog(self, initial_name: str = "", logo_b64: str = ""):
         overlay_cb = self.overlay.show_overlay_for_register if self.overlay else None
-        dialog = AccountAddDialog(initial_name=initial_name, overlay_callback=overlay_cb, parent=self)
+        dialog = AccountAddDialog(initial_name=initial_name, logo_b64=logo_b64, overlay_callback=overlay_cb, parent=self)
         if dialog.exec() == QDialog.Accepted:
             data = dialog.get_data()
             if data["name"]:
@@ -346,7 +361,8 @@ class AccountManagerWindow(QMainWindow):
                     sec_question=data["sec_question"],
                     sec_answer=data["sec_answer"],
                     alias1=data["alias1"],
-                    alias2=data["alias2"]
+                    alias2=data["alias2"],
+                    logo_image=data["logo_image"]
                 )
                 self.refresh_table()
 

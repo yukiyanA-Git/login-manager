@@ -5,6 +5,7 @@ import difflib
 from typing import List, Dict, Optional
 from cryptography.fernet import Fernet
 from firebase_client import FirebaseClient
+from logo_matcher import match_logo_image
 
 KEY_FILE = os.path.join(os.path.dirname(__file__), "vault_key.key")
 DATA_FILE = os.path.join(os.path.dirname(__file__), "vault_data.json")
@@ -27,14 +28,12 @@ class CryptoVault:
         return key
 
     def load_vault(self):
-        # 1. Try fetching from cloud first if Firebase enabled & logged in
         cloud_accs = self.firebase.fetch_from_cloud()
         if cloud_accs is not None and len(cloud_accs) > 0:
             self.accounts = cloud_accs
             self.save_local_file()
             return
 
-        # 2. Fall back to local encrypted file
         if os.path.exists(DATA_FILE):
             try:
                 with open(DATA_FILE, "rb") as f:
@@ -61,7 +60,7 @@ class CryptoVault:
     def add_account(self, name: str, username: str, password: str, security_level: int = 1,
                     category: str = "一般", url: str = "", notes: str = "",
                     sec_question: str = "", sec_answer: str = "",
-                    alias1: str = "", alias2: str = ""):
+                    alias1: str = "", alias2: str = "", logo_image: str = ""):
         import uuid
         acc_id = str(uuid.uuid4())[:8]
 
@@ -84,7 +83,8 @@ class CryptoVault:
             "notes": notes,
             "sec_question": sec_question,
             "sec_answer": sec_answer,
-            "aliases": aliases
+            "aliases": aliases,
+            "logo_image": logo_image
         }
         self.accounts.append(acc)
         self.save_vault()
@@ -95,19 +95,18 @@ class CryptoVault:
         self.save_vault()
 
     def find_account_by_name(self, query: str) -> Optional[Dict]:
-        """Searches accounts by exact or fuzzy match on name and aliases."""
         if not query:
             return None
         q = query.strip().lower()
 
-        # 1. Exact match
+        # Exact match
         for acc in self.accounts:
             aliases = acc.get("aliases", [acc.get("name", "").lower()])
             for a in aliases:
                 if q == a or q in a or a in q:
                     return acc
 
-        # 2. Fuzzy match
+        # Fuzzy match
         all_terms = []
         term_map = {}
         for acc in self.accounts:
@@ -125,14 +124,9 @@ class CryptoVault:
         return None
 
     def find_account_by_window_title(self, window_title: str) -> Optional[Dict]:
-        """
-        Cleans browser window title (e.g. 'MUFG Biz ログイン - Google Chrome')
-        and checks for matching company/product name in accounts vault.
-        """
         if not window_title:
             return None
 
-        # Clean browser title suffixes
         clean_title = window_title
         for suffix in [" - Google Chrome", " - Microsoft Edge", " - Mozilla Firefox", " - Brave", " - Opera"]:
             if clean_title.endswith(suffix):
@@ -140,7 +134,6 @@ class CryptoVault:
 
         clean_title_lower = clean_title.lower()
 
-        # Check if any registered company name or alias appears inside the window title
         for acc in self.accounts:
             name = acc.get("name", "").lower()
             alias1 = acc.get("alias1", "").lower()
@@ -153,8 +146,11 @@ class CryptoVault:
             if alias2 and (alias2 in clean_title_lower or clean_title_lower in alias2):
                 return acc
 
-        # Also attempt fuzzy term matching
         return self.find_account_by_name(clean_title)
+
+    def find_account_by_logo(self, target_img) -> Optional[Dict]:
+        """Finds matching account using visual logo image similarity comparison."""
+        return match_logo_image(target_img, self.accounts, threshold=0.75)
 
     def import_csv(self, file_path: str) -> int:
         count = 0

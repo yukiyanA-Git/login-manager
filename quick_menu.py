@@ -45,7 +45,6 @@ class QuickTrayMenu(QMenu):
         self.addAction(title_action)
         self.addSeparator()
 
-        # Google Sign-In Status / Action
         user_email = self.manager_win.vault.firebase.user_email
         if user_email:
             google_text = f"🔴  Google連動中: {user_email}"
@@ -58,7 +57,7 @@ class QuickTrayMenu(QMenu):
 
         self.addSeparator()
 
-        action_register = QAction("➕  新規アカウント登録 (コピー文/画面から)", self)
+        action_register = QAction("➕  新規アカウント登録 (コピー文/画面ロゴから)", self)
         action_register.triggered.connect(self.trigger_register)
         self.addAction(action_register)
 
@@ -66,7 +65,7 @@ class QuickTrayMenu(QMenu):
         action_search.triggered.connect(self.trigger_search)
         self.addAction(action_search)
 
-        action_ocr = QAction("📐  画面枠で囲んで検索 (OCR)", self)
+        action_ocr = QAction("📐  画面ロゴ/枠で囲んで検索 (画像比較)", self)
         action_ocr.triggered.connect(self.trigger_ocr)
         self.addAction(action_ocr)
 
@@ -94,7 +93,7 @@ class QuickTrayMenu(QMenu):
             self.manager_win.activateWindow()
         else:
             self.overlay.show_overlay_for_register(
-                lambda name: self.manager_win.open_add_dialog(initial_name=name)
+                lambda name, logo_b64="": self.manager_win.open_add_dialog(initial_name=name, logo_b64=logo_b64)
             )
 
     def trigger_search(self):
