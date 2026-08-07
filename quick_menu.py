@@ -1,3 +1,4 @@
+import webbrowser
 from PySide6.QtWidgets import QMenu, QWidget, QApplication
 from PySide6.QtCore import Qt, QPoint
 from PySide6.QtGui import QAction, QFont, QIcon, QColor
@@ -57,6 +58,48 @@ class QuickTrayMenu(QMenu):
 
         self.addSeparator()
 
+        # Bookmark Submenu
+        bookmark_menu = QMenu("🔖  登録サイトを開く (ブックマーク)", self)
+        bookmark_menu.setStyleSheet("""
+            QMenu {
+                background-color: #1F2937;
+                border: 1px solid #0078D4;
+                border-radius: 8px;
+                color: #F9FAFB;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 6px 14px;
+            }
+            QMenu::item:selected {
+                background-color: #4F46E5;
+                color: #FFFFFF;
+            }
+        """)
+
+        has_bookmarks = False
+        for acc in self.manager_win.vault.accounts:
+            name = acc.get("name", "")
+            url = acc.get("url", "")
+            if name:
+                has_bookmarks = True
+                display_label = f"🌐  {name}"
+                if url:
+                    display_label += f" ({url[:25]}...)" if len(url) > 25 else f" ({url})"
+
+                action_site = QAction(display_label, self)
+                action_site.triggered.connect(lambda _, a=acc: self.open_bookmark_and_popup(a))
+                bookmark_menu.addAction(action_site)
+
+        if not has_bookmarks:
+            action_empty = QAction("（登録サイトはありません）", self)
+            action_empty.setEnabled(False)
+            bookmark_menu.addAction(action_empty)
+
+        self.addMenu(bookmark_menu)
+
+        self.addSeparator()
+
         action_register = QAction("➕  新規アカウント登録 (コピー文/画面ロゴから)", self)
         action_register.triggered.connect(self.trigger_register)
         self.addAction(action_register)
@@ -80,6 +123,16 @@ class QuickTrayMenu(QMenu):
         action_quit = QAction("❌  アプリ完全終了", self)
         action_quit.triggered.connect(QApplication.quit)
         self.addAction(action_quit)
+
+    def open_bookmark_and_popup(self, acc: dict):
+        url = acc.get("url", "")
+        if url:
+            if not url.startswith("http://") and not url.startswith("https://"):
+                url = "https://" + url
+            webbrowser.open(url)
+
+        # Show popup window staying on top so it doesn't get buried!
+        self.overlay.handle_account_found(acc)
 
     def trigger_google_auth(self):
         self.manager_win.open_google_dialog()
