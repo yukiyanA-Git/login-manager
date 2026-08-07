@@ -13,7 +13,7 @@ class FallbackAuthDialog(QDialog):
         layout = QVBoxLayout()
         layout.setSpacing(12)
 
-        icon_label = QLabel(f"🔒 <b>{item_name}</b> は【フォルダ③ 高セキュリティ】です。")
+        icon_label = QLabel(f"🔒 <b>{item_name}</b> は【高セキュリティ】です。")
         icon_label.setStyleSheet("font-size: 13px;")
         icon_label.setWordWrap(True)
         layout.addWidget(icon_label)
@@ -42,22 +42,16 @@ class FallbackAuthDialog(QDialog):
         self.setLayout(layout)
 
     def verify_pin(self):
-        # Default test PIN: 1234 or non-empty
         if self.pin_input.text().strip() in ["1234", "admin", "pass", "123456"]:
             self.authenticated = True
             self.accept()
         else:
             QMessageBox.warning(self, "認証失敗", "PINが正しくありません。(初期テストPIN: 1234)")
 
-
 def authenticate_windows_hello(item_name: str, parent=None) -> bool:
-    """
-    Attempts Windows Hello biometric (Face/Fingerprint/PIN) authentication.
-    Falls back to FallbackAuthDialog if Windows Hello API is unavailable or denied.
-    """
     try:
         from winrt.windows.security.credentials.ui import UserConsentVerifier, UserConsentVerificationResult
-        
+
         async def verify_win_hello():
             result = await UserConsentVerifier.request_verification_async(
                 f"【{item_name}】を表示するため本人確認を行います"
@@ -74,7 +68,10 @@ def authenticate_windows_hello(item_name: str, parent=None) -> bool:
     except Exception as e:
         print(f"[Auth Notice] Windows Hello API fallback: {e}")
 
-    # Fallback Dialog (PIN/Password check)
     dialog = FallbackAuthDialog(item_name, parent)
     dialog.exec()
     return dialog.authenticated
+
+class WindowsHelloAuthenticator:
+    def authenticate(self, reason: str = "") -> bool:
+        return authenticate_windows_hello(item_name=reason)

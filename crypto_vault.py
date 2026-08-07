@@ -1,167 +1,81 @@
 import os
 import json
 import csv
-import base64
 import difflib
 from typing import List, Dict, Optional
 from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from firebase_client import FirebaseClient
 
-VAULT_FILE = os.path.join(os.path.dirname(__file__), "vault_data.json")
-MASTER_SALT = b"AntigravityPasswordManagerSalt2026"
+KEY_FILE = os.path.join(os.path.dirname(__file__), "vault_key.key")
+DATA_FILE = os.path.join(os.path.dirname(__file__), "vault_data.json")
 
 class CryptoVault:
-    def __init__(self, master_password: str = "default_master_key"):
-        self.master_password = master_password
-        self.fernet = self._generate_fernet(master_password)
+    def __init__(self):
+        self.key = self._get_or_create_key()
+        self.fernet = Fernet(self.key)
         self.firebase = FirebaseClient()
         self.accounts: List[Dict] = []
         self.load_vault()
 
-    def _generate_fernet(self, password: str) -> Fernet:
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=MASTER_SALT,
-            iterations=100_000,
-        )
-        key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
-        return Fernet(key)
+    def _get_or_create_key(self) -> bytes:
+        if os.path.exists(KEY_FILE):
+            with open(KEY_FILE, "rb") as f:
+                return f.read()
+        key = Fernet.generate_key()
+        with open(KEY_FILE, "wb") as f:
+            f.write(key)
+        return key
 
     def load_vault(self):
-        cloud_accounts = self.firebase.fetch_from_cloud()
-        if cloud_accounts:
-            self.accounts = cloud_accounts
+        # 1. Try fetching from cloud first if Firebase enabled & logged in
+        cloud_accs = self.firebase.fetch_from_cloud()
+        if cloud_accs is not None and len(cloud_accs) > 0:
+            self.accounts = cloud_accs
             self.save_local_file()
             return
 
-        if not os.path.exists(VAULT_FILE):
-            self._create_demo_accounts()
-            self.save_vault()
-            return
-
-        try:
-            with open(VAULT_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                self.accounts = data.get("accounts", [])
-        except Exception as e:
-            print(f"Error loading vault: {e}")
-            self._create_demo_accounts()
+        # 2. Fall back to local encrypted file
+        if os.path.exists(DATA_FILE):
+            try:
+                with open(DATA_FILE, "rb") as f:
+                    encrypted_data = f.read()
+                decrypted_data = self.fernet.decrypt(encrypted_data).decode("utf-8")
+                self.accounts = json.loads(decrypted_data)
+            except Exception as e:
+                print(f"Error loading vault: {e}")
+                self.accounts = []
+        else:
+            self.accounts = []
 
     def save_vault(self):
         self.save_local_file()
-        self.firebase.sync_to_cloud(self.accounts)
+        if self.firebase.enabled:
+            self.firebase.sync_to_cloud(self.accounts)
 
     def save_local_file(self):
-        data = {"accounts": self.accounts}
-        with open(VAULT_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-
-    def _create_demo_accounts(self):
-        self.accounts = [
-            {
-                "id": "acc_001",
-                "name": "Amazon",
-                "alias1": "アマゾン",
-                "alias2": "Amazon Prime",
-                "aliases": ["amazon", "アマゾン", "amazon.co.jp", "amazon prime"],
-                "username": "user_amazon@example.com",
-                "password": "AmazonSecurePassword123!",
-                "security_level": 1,
-                "category": "ショッピング",
-                "url": "https://www.amazon.co.jp",
-                "notes": "プライム会員アカウント",
-                "sec_question": "",
-                "sec_answer": ""
-            },
-            {
-                "id": "acc_002",
-                "name": "Sansan",
-                "alias1": "Eight",
-                "alias2": "Sansan名刺",
-                "aliases": ["sansan", "eight", "エイト"],
-                "username": "user_sansan@example.com",
-                "password": "SansanPassword#2026",
-                "security_level": 1,
-                "category": "ビジネス",
-                "url": "https://8card.net",
-                "notes": "名刺管理サービスEight",
-                "sec_question": "",
-                "sec_answer": ""
-            },
-            {
-                "id": "acc_003",
-                "name": "マネーフォワード",
-                "alias1": "MFクラウド",
-                "alias2": "マネーフォワードME",
-                "aliases": ["マネーフォワード", "moneyforward", "mfクラウド", "mf"],
-                "username": "finance_user@example.com",
-                "password": "MoneyForwardStrictPass$99",
-                "security_level": 3,
-                "category": "金融・資産",
-                "url": "https://moneyforward.com",
-                "notes": "暗号化資産口座連携済み",
-                "sec_question": "第一ペットの名前",
-                "sec_answer": "ポチ"
-            }
-        ]
-
-    def find_account_by_name(self, search_text: str) -> Optional[Dict]:
-        """
-        Clipboard / OCR Text Search matching:
-        1. Exact / Substring match against Name, Alias1, Alias2, or Aliases list.
-        2. Fuzzy Similarity ratio match.
-        """
-        if not search_text:
-            return None
-        text_lower = search_text.strip().lower()
-
-        # Step 1: Substring / Exact match
-        for acc in self.accounts:
-            all_names = [acc["name"].lower(), acc.get("alias1", "").lower(), acc.get("alias2", "").lower()] + [a.lower() for a in acc.get("aliases", [])]
-            for target in all_names:
-                if target and (text_lower in target or target in text_lower):
-                    return acc
-
-        # Step 2: Fuzzy Similarity match
-        best_match = None
-        best_ratio = 0.0
-
-        for acc in self.accounts:
-            all_names = [acc["name"].lower(), acc.get("alias1", "").lower(), acc.get("alias2", "").lower()] + [a.lower() for a in acc.get("aliases", [])]
-            for target in all_names:
-                if not target:
-                    continue
-                ratio = difflib.SequenceMatcher(None, text_lower, target).ratio()
-                if ratio > best_ratio and ratio >= 0.45:
-                    best_ratio = ratio
-                    best_match = acc
-
-        if best_match:
-            print(f"[Smart Match] Matched '{search_text}' -> '{best_match['name']}' (Ratio: {best_ratio:.2f})")
-            return best_match
-
-        return None
+        raw_json = json.dumps(self.accounts, ensure_ascii=False, indent=2).encode("utf-8")
+        encrypted_data = self.fernet.encrypt(raw_json)
+        with open(DATA_FILE, "wb") as f:
+            f.write(encrypted_data)
 
     def add_account(self, name: str, username: str, password: str, security_level: int = 1,
                     category: str = "一般", url: str = "", notes: str = "",
                     sec_question: str = "", sec_answer: str = "",
                     alias1: str = "", alias2: str = ""):
-        aliases = [name.lower(), name.replace(" ", "").lower()]
+        import uuid
+        acc_id = str(uuid.uuid4())[:8]
+
+        aliases = [name.lower()]
         if alias1:
             aliases.append(alias1.lower())
         if alias2:
             aliases.append(alias2.lower())
 
-        acc_id = f"acc_{len(self.accounts) + 1:03d}"
-        new_acc = {
+        acc = {
             "id": acc_id,
             "name": name,
             "alias1": alias1,
             "alias2": alias2,
-            "aliases": aliases,
             "username": username,
             "password": password,
             "security_level": security_level,
@@ -169,35 +83,107 @@ class CryptoVault:
             "url": url,
             "notes": notes,
             "sec_question": sec_question,
-            "sec_answer": sec_answer
+            "sec_answer": sec_answer,
+            "aliases": aliases
         }
-        self.accounts.append(new_acc)
+        self.accounts.append(acc)
         self.save_vault()
-        return new_acc
+        return acc
 
     def delete_account(self, acc_id: str):
-        self.accounts = [a for a in self.accounts if a["id"] != acc_id]
+        self.accounts = [a for a in self.accounts if a.get("id") != acc_id]
         self.save_vault()
+
+    def find_account_by_name(self, query: str) -> Optional[Dict]:
+        """Searches accounts by exact or fuzzy match on name and aliases."""
+        if not query:
+            return None
+        q = query.strip().lower()
+
+        # 1. Exact match
+        for acc in self.accounts:
+            aliases = acc.get("aliases", [acc.get("name", "").lower()])
+            for a in aliases:
+                if q == a or q in a or a in q:
+                    return acc
+
+        # 2. Fuzzy match
+        all_terms = []
+        term_map = {}
+        for acc in self.accounts:
+            name = acc.get("name", "").lower()
+            all_terms.append(name)
+            term_map[name] = acc
+            for a in [acc.get("alias1", "").lower(), acc.get("alias2", "").lower()]:
+                if a:
+                    all_terms.append(a)
+                    term_map[a] = acc
+
+        matches = difflib.get_close_matches(q, all_terms, n=1, cutoff=0.35)
+        if matches:
+            return term_map[matches[0]]
+        return None
+
+    def find_account_by_window_title(self, window_title: str) -> Optional[Dict]:
+        """
+        Cleans browser window title (e.g. 'MUFG Biz ログイン - Google Chrome')
+        and checks for matching company/product name in accounts vault.
+        """
+        if not window_title:
+            return None
+
+        # Clean browser title suffixes
+        clean_title = window_title
+        for suffix in [" - Google Chrome", " - Microsoft Edge", " - Mozilla Firefox", " - Brave", " - Opera"]:
+            if clean_title.endswith(suffix):
+                clean_title = clean_title[:-len(suffix)]
+
+        clean_title_lower = clean_title.lower()
+
+        # Check if any registered company name or alias appears inside the window title
+        for acc in self.accounts:
+            name = acc.get("name", "").lower()
+            alias1 = acc.get("alias1", "").lower()
+            alias2 = acc.get("alias2", "").lower()
+
+            if name and (name in clean_title_lower or clean_title_lower in name):
+                return acc
+            if alias1 and (alias1 in clean_title_lower or clean_title_lower in alias1):
+                return acc
+            if alias2 and (alias2 in clean_title_lower or clean_title_lower in alias2):
+                return acc
+
+        # Also attempt fuzzy term matching
+        return self.find_account_by_name(clean_title)
 
     def import_csv(self, file_path: str) -> int:
         count = 0
-        with open(file_path, "r", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                name = row.get("会社名") or row.get("Name") or row.get("title") or "Unknown"
-                alias1 = row.get("製品名1") or row.get("製品名") or row.get("Alias1") or ""
-                alias2 = row.get("製品名2") or row.get("Alias2") or ""
-                username = row.get("ID") or row.get("Username") or row.get("username") or ""
-                password = row.get("パスワード") or row.get("Password") or row.get("password") or ""
-                sec_str = str(row.get("セキュリティレベル") or row.get("SecurityLevel") or "1")
-                sec_level = 3 if "3" in sec_str or "高" in sec_str else 1
-                cat = row.get("カテゴリー") or row.get("Category") or "CSVインポート"
-                url = row.get("URL") or ""
-                notes = row.get("備考") or row.get("Notes") or ""
-                sec_q = row.get("秘密の質問") or row.get("SecurityQuestion") or ""
-                sec_a = row.get("秘密の答え") or row.get("SecurityAnswer") or ""
+        if not os.path.exists(file_path):
+            return 0
 
-                if name and (username or password):
-                    self.add_account(name, username, password, sec_level, cat, url, notes, sec_q, sec_a, alias1, alias2)
-                    count += 1
+        with open(file_path, "r", encoding="utf-8-sig") as f:
+            reader = csv.reader(f)
+            headers = next(reader, None)
+            for row in reader:
+                if len(row) >= 5:
+                    name = row[0].strip()
+                    alias1 = row[1].strip() if len(row) > 1 else ""
+                    alias2 = row[2].strip() if len(row) > 2 else ""
+                    username = row[3].strip() if len(row) > 3 else ""
+                    password = row[4].strip() if len(row) > 4 else ""
+                    sec_level = int(row[5]) if len(row) > 5 and row[5].isdigit() else 1
+                    notes = row[6] if len(row) > 6 else ""
+                    sec_q = row[7] if len(row) > 7 else ""
+                    sec_a = row[8] if len(row) > 8 else ""
+                    cat = row[9] if len(row) > 9 else "一般"
+                    url = row[10] if len(row) > 10 else ""
+
+                    if name and username and password:
+                        self.add_account(
+                            name=name, username=username, password=password,
+                            security_level=sec_level, category=cat, url=url,
+                            notes=notes, sec_question=sec_q, sec_answer=sec_a,
+                            alias1=alias1, alias2=alias2
+                        )
+                        count += 1
         return count

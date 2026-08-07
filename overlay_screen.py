@@ -1,207 +1,180 @@
-from PySide6.QtWidgets import QWidget, QApplication, QMessageBox, QInputDialog
-from PySide6.QtCore import Qt, QRect, QPoint
-from PySide6.QtGui import QPainter, QColor, QPen, QFont
-from PIL import ImageGrab
+import os
+from PySide6.QtWidgets import (
+    QWidget, QRubberBand, QMessageBox, QApplication, QInputDialog
+)
+from PySide6.QtCore import Qt, QRect, QPoint, QTimer
+from PySide6.QtGui import QPainter, QColor, QBrush, QCursor, QFont
 
-from ocr_engine import perform_ocr_on_image
-from auth_hello import authenticate_windows_hello
+from ocr_engine import WinRTOcrEngine
 from popup_window import FloatingPopupWindow
+from auth_hello import WindowsHelloAuthenticator
+from win_title_helper import get_active_window_title
 
 class ScreenSelectionOverlay(QWidget):
     def __init__(self, vault_instance, parent=None):
         super().__init__(parent)
         self.vault = vault_instance
-        self.start_pos = None
-        self.end_pos = None
-        self.is_drawing = False
-        self.current_rect = QRect()
-        self.popup_ref = None
-        self.register_mode_callback = None
+        self.ocr = WinRTOcrEngine()
+        self.authenticator = WindowsHelloAuthenticator()
 
         self.setWindowFlags(
-            Qt.WindowStaysOnTopHint |
             Qt.FramelessWindowHint |
-            Qt.Tool |
-            Qt.BypassWindowManagerHint
+            Qt.WindowStaysOnTopHint |
+            Qt.SubWindow
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setCursor(Qt.CrossCursor)
+
+        self.rubber_band = None
+        self.origin = QPoint()
+        self.is_register_mode = False
+        self.register_callback = None
+        self.popup_win = None
 
     def smart_search(self):
         """
-        Hyper-fast Clipboard-First Search:
-        1. Checks if clipboard contains non-empty text (e.g. copied text 'Amazon' or 'Eight').
-        2. If matching account found -> Instantly opens popup window (0ms delay, 100% exact match).
-        3. If no clipboard match -> Opens screen selection overlay (長方形の枠) as fallback for image logos!
+        Smart 2-Step Search without intrusive OCR popups:
+        Step 1: Check Clipboard text (Ctrl+C). If matched, show popup instantly!
+        Step 2: Check Active Window Title (e.g., 'MUFG Biz ログイン'). If matched, show popup instantly!
+        Step 3: If no match found, prompt user with options (Manual Search / OCR Screen Framing / Register).
         """
+        # Step 1: Clipboard Text Check
         clip_text = QApplication.clipboard().text().strip()
-        if clip_text and len(clip_text) < 60:
+        if clip_text and len(clip_text) < 100:
             matched_acc = self.vault.find_account_by_name(clip_text)
             if matched_acc:
-                print(f"[Smart Search] Instant Clipboard Match: '{clip_text}' -> '{matched_acc['name']}'")
-                sec_level = matched_acc.get("security_level", 1)
-                if sec_level == 3:
-                    auth_ok = authenticate_windows_hello(matched_acc["name"])
-                    if not auth_ok:
-                        QMessageBox.warning(None, "アクセス拒否", "厳重保護認証が完了しなかったためログイン情報を表示できません。")
-                        return
-
-                # Position popup at top-right of screen
-                screen_geom = QApplication.primaryScreen().geometry()
-                popup_pos = QPoint(screen_geom.width() - 370, 80)
-                self.popup_ref = FloatingPopupWindow(matched_acc, pos=popup_pos)
-                self.popup_ref.show()
+                print(f"[Smart Search] Clipboard matched: '{clip_text}' -> {matched_acc.get('name')}")
+                self.handle_account_found(matched_acc)
                 return
 
-        # Fallback to Screen Selection Overlay if no clipboard match
-        self.show_overlay()
+        # Step 2: Active Window Title Check (e.g. "MUFG Biz ログイン", "BizSTATION")
+        win_title = get_active_window_title()
+        if win_title:
+            matched_acc = self.vault.find_account_by_window_title(win_title)
+            if matched_acc:
+                print(f"[Smart Search] Active Window Title matched: '{win_title}' -> {matched_acc.get('name')}")
+                self.handle_account_found(matched_acc)
+                return
+
+        # Step 3: Friendly prompt without forced OCR popup
+        hint_str = f"「{clip_text}」" if clip_text else f"ウィンドウ「{win_title[:30]}」" if win_title else "テキスト"
+        reply = QMessageBox.question(
+            None,
+            "ログイン検索 - 見つかりませんでした",
+            f"コピーした文字列または画面【{hint_str}】に該当する登録情報が見つかりませんでした。\n\n"
+            f"画面上のロゴや文字を四角い枠で囲んでOCR検索（画面キャプチャ）を行いますか？",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        )
+        if reply == QMessageBox.Yes:
+            self.show_overlay()
 
     def show_overlay(self):
-        """Standard search mode: frame company name to find and open popup."""
-        self.register_mode_callback = None
-        self._prepare_and_show("コピーした文字またはマウスドラッグで会社名を囲んで検索してください [Enter/Wクリックで確定]")
-
-    def show_overlay_for_register(self, callback):
-        """Register mode: frame company name or use clipboard text to auto-fill registration form!"""
-        clip_text = QApplication.clipboard().text().strip()
-        if clip_text and len(clip_text) < 60:
-            callback(clip_text)
-            return
-
-        self.register_mode_callback = callback
-        self._prepare_and_show("マウスドラッグで登録する会社名を囲んでください [自動入力します]")
-
-    def _prepare_and_show(self, banner_text: str):
-        self.banner_text = banner_text
-        screen = QApplication.primaryScreen()
-        if screen:
-            self.setGeometry(screen.geometry())
-
-        self.start_pos = None
-        self.end_pos = None
-        self.current_rect = QRect()
-        self.showFullScreen()
+        self.is_register_mode = False
+        self.register_callback = None
+        self._set_fullscreen_geometry()
+        self.show()
         self.raise_()
         self.activateWindow()
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.start_pos = event.pos()
-            self.end_pos = event.pos()
-            self.is_drawing = True
-            self.current_rect = QRect(self.start_pos, self.end_pos)
-            self.update()
+    def show_overlay_for_register(self, callback):
+        self.is_register_mode = True
+        self.register_callback = callback
+        self._set_fullscreen_geometry()
+        self.show()
+        self.raise_()
+        self.activateWindow()
 
-    def mouseMoveEvent(self, event):
-        if self.is_drawing:
-            self.end_pos = event.pos()
-            self.current_rect = QRect(self.start_pos, self.end_pos).normalized()
-            self.update()
-
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton and self.is_drawing:
-            self.is_drawing = False
-            self.end_pos = event.pos()
-            self.current_rect = QRect(self.start_pos, self.end_pos).normalized()
-            self.update()
-
-    def mouseDoubleClickEvent(self, event):
-        if self.current_rect and self.current_rect.width() > 10 and self.current_rect.height() > 10:
-            self.process_selection()
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
-            self.close()
-        elif event.key() in (Qt.Key_Return, Qt.Key_Enter):
-            if self.current_rect and self.current_rect.width() > 10:
-                self.process_selection()
+    def _set_fullscreen_geometry(self):
+        screen_geo = QApplication.primaryScreen().geometry()
+        self.setGeometry(screen_geo)
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 90))
-
-        painter.setPen(Qt.NoPen)
-        banner_bg = QColor(220, 38, 38, 230) if self.register_mode_callback else QColor(17, 24, 39, 230)
-        painter.setBrush(banner_bg)
-        banner_rect = QRect(self.width() // 2 - 300, 24, 600, 44)
-        painter.drawRoundedRect(banner_rect, 10, 10)
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 80))
 
         painter.setPen(QColor(255, 255, 255))
-        painter.setFont(QFont("Meiryo", 11, QFont.Bold))
-        text = getattr(self, "banner_text", "マウスドラッグで会社名を囲んでください")
-        painter.drawText(banner_rect, Qt.AlignCenter, text)
+        painter.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        text = "➕ 画面上の会社名ロゴをドラッグして自動入力登録" if self.is_register_mode else "🔍 画面上の文字/ロゴをドラッグして枠で囲む (ESCキーでキャンセル)"
+        painter.drawText(20, 40, text)
 
-        if self.current_rect and not self.current_rect.isEmpty():
-            painter.setCompositionMode(QPainter.CompositionMode_Clear)
-            painter.fillRect(self.current_rect, QColor(0, 0, 0, 0))
-            painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.origin = event.pos()
+            if not self.rubber_band:
+                self.rubber_band = QRubberBand(QRubberBand.Rectangle, self)
+            self.rubber_band.setGeometry(QRect(self.origin, self.origin))
+            self.rubber_band.show()
 
-            pen_color = QColor(239, 68, 68) if self.register_mode_callback else QColor(0, 120, 212)
-            pen = QPen(pen_color, 2, Qt.SolidLine)
-            painter.setPen(pen)
-            painter.setBrush(QColor(pen_color.red(), pen_color.green(), pen_color.blue(), 40))
-            painter.drawRect(self.current_rect)
+    def mouseMoveEvent(self, event):
+        if self.rubber_band and self.origin:
+            self.rubber_band.setGeometry(QRect(self.origin, event.pos()).normalized())
 
-            dim_text = f"{self.current_rect.width()} x {self.current_rect.height()} px"
-            painter.setFont(QFont("Segoe UI", 9))
-            painter.setPen(pen_color)
-            painter.setBrush(QColor(255, 255, 255, 240))
-            badge_rect = QRect(self.current_rect.left(), max(0, self.current_rect.top() - 22), 110, 20)
-            painter.drawRoundedRect(badge_rect, 4, 4)
-            painter.drawText(badge_rect, Qt.AlignCenter, dim_text)
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self.rubber_band:
+            selection_rect = self.rubber_band.geometry()
+            self.rubber_band.hide()
+            self.hide()
 
-    def process_selection(self):
-        rect = self.current_rect
-        self.close()
+            if selection_rect.width() > 10 and selection_rect.height() > 10:
+                QTimer.singleShot(100, lambda: self.process_selection(selection_rect))
 
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape:
+            if self.rubber_band:
+                self.rubber_band.hide()
+            self.hide()
+
+    def process_selection(self, rect: QRect):
+        cursor_pos = QCursor.pos()
+
+        # High-DPI screen scaling
         screen = QApplication.primaryScreen()
-        dpr = screen.devicePixelRatio() if screen else 1.0
+        dpr = screen.devicePixelRatio()
 
         x = int(rect.x() * dpr)
         y = int(rect.y() * dpr)
         w = int(rect.width() * dpr)
         h = int(rect.height() * dpr)
 
-        captured_img = ImageGrab.grab(bbox=(x, y, x + w, y + h))
+        detected_text = self.ocr.recognize_region(x, y, w, h)
+        print(f"[OCR Detected]: '{detected_text}'")
 
-        ocr_text = perform_ocr_on_image(captured_img)
-        cleaned_text = ocr_text.replace("\n", " ").replace("\r", "").strip() if ocr_text else ""
-        print(f"[OCR Log] Raw: '{ocr_text}' -> Cleaned: '{cleaned_text}' (DPR: {dpr})")
-
-        if self.register_mode_callback:
-            if not cleaned_text:
-                text, ok = QInputDialog.getText(
-                    None, "会社名の手動入力",
-                    "囲んだ画像から文字が読めませんでした。\n登録する「会社名」を入力してください:"
-                )
-                cleaned_text = text.strip() if ok else ""
-
-            self.register_mode_callback(cleaned_text)
+        if self.is_register_mode:
+            if self.register_callback:
+                self.register_callback(detected_text)
             return
 
-        account = self.vault.find_account_by_name(cleaned_text)
+        if not detected_text:
+            QMessageBox.warning(None, "読み取りエラー", "選択範囲から文字を認識できませんでした。\nもう一度枠を広げて囲んでみてください。")
+            return
 
-        if not account:
-            names = [a["name"] for a in self.vault.accounts]
-            item, ok = QInputDialog.getItem(
-                None, "対象アカウント選択",
-                f"読み取りテキスト: '{cleaned_text if cleaned_text else '(未検出)'}'\n表示するアカウントを選択してください:",
-                names, 0, False
+        matched_acc = self.vault.find_account_by_name(detected_text)
+        if matched_acc:
+            self.handle_account_found(matched_acc, cursor_pos)
+        else:
+            QMessageBox.information(
+                None, "未登録",
+                f"認識された文字: 「{detected_text}」\n\n該当するアカウント情報は未登録です。「アカウント管理」画面から新規追加を行ってください。"
             )
-            if ok and item:
-                account = self.vault.find_account_by_name(item)
-            else:
-                return
 
-        sec_level = account.get("security_level", 1)
+    def handle_account_found(self, acc_data: dict, pos: QPoint = None):
+        if not pos:
+            pos = QCursor.pos()
 
+        sec_level = acc_data.get("security_level", 1)
         if sec_level == 3:
-            auth_ok = authenticate_windows_hello(account["name"])
-            if not auth_ok:
-                QMessageBox.warning(None, "アクセス拒否", "厳重保護認証が完了しなかったためログイン情報を表示できません。")
+            # Requires Windows Hello / PIN
+            service_name = acc_data.get("name", "アカウント")
+            is_authed = self.authenticator.authenticate(
+                reason=f"「{service_name}」のパスワード閲覧セキュリティ保護"
+            )
+            if not is_authed:
+                QMessageBox.warning(None, "認証失敗", "本人確認認証に失敗しました。パスワードを表示できません。")
                 return
 
-        popup_pos = QPoint(rect.x() + rect.width() + 10, rect.y())
-        self.popup_ref = FloatingPopupWindow(account, pos=popup_pos)
-        self.popup_ref.show()
+        if self.popup_win:
+            self.popup_win.close()
+
+        self.popup_win = FloatingPopupWindow(acc_data, pos=pos)
+        self.popup_win.show()

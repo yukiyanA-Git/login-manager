@@ -1,15 +1,9 @@
 import io
 import asyncio
 import unicodedata
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance, ImageFilter, ImageGrab
 
 def preprocess_image_for_ocr(pil_image: Image.Image) -> Image.Image:
-    """
-    Enhances screen capture image for maximum OCR accuracy:
-    1. Upscales image 3x using Lanczos interpolation to make small text crisp.
-    2. Converts to Grayscale.
-    3. Boosts Contrast and Sharpness.
-    """
     if pil_image is None:
         return None
 
@@ -43,9 +37,6 @@ def clean_ocr_text(text: str) -> str:
     return result
 
 def perform_ocr_on_image(pil_image: Image.Image) -> str:
-    """
-    High-Accuracy OCR processing using pre-processed image and Windows Native OCR.
-    """
     if pil_image is None:
         return ""
 
@@ -88,8 +79,14 @@ def perform_ocr_on_image(pil_image: Image.Image) -> str:
     except Exception as e:
         print(f"[High-Accuracy OCR Notice] WinRT OCR error/fallback: {e}")
 
-    try:
-        raw_cleaned = clean_ocr_text(raw_text if 'raw_text' in locals() else "")
-        return raw_cleaned
-    except Exception:
-        return ""
+    return ""
+
+class WinRTOcrEngine:
+    def recognize_region(self, x: int, y: int, w: int, h: int) -> str:
+        try:
+            bbox = (x, y, x + w, y + h)
+            img = ImageGrab.grab(bbox=bbox)
+            return perform_ocr_on_image(img)
+        except Exception as e:
+            print(f"Error capturing screen region: {e}")
+            return ""
