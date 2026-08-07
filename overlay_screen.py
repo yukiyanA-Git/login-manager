@@ -34,6 +34,7 @@ class ScreenSelectionOverlay(QWidget):
         self.popup_win = None
 
     def smart_search(self):
+        self.hide()
         # Step 1: Clipboard Text Check
         clip_text = QApplication.clipboard().text().strip()
         if clip_text and len(clip_text) < 100:
@@ -132,7 +133,6 @@ class ScreenSelectionOverlay(QWidget):
         w = int(rect.width() * dpr)
         h = int(rect.height() * dpr)
 
-        # Capture cropped PIL Image
         try:
             bbox = (x, y, x + w, y + h)
             captured_img = ImageGrab.grab(bbox=bbox)
@@ -150,7 +150,6 @@ class ScreenSelectionOverlay(QWidget):
                 self.register_callback(detected_text, captured_b64)
             return
 
-        # 1. Try text OCR match first
         if detected_text:
             matched_acc = self.vault.find_account_by_name(detected_text)
             if matched_acc:
@@ -158,7 +157,6 @@ class ScreenSelectionOverlay(QWidget):
                 self.handle_account_found(matched_acc, cursor_pos)
                 return
 
-        # 2. Try Visual Logo Image Similarity match
         if captured_img:
             logo_matched_acc = self.vault.find_account_by_logo(captured_img)
             if logo_matched_acc:
@@ -172,6 +170,11 @@ class ScreenSelectionOverlay(QWidget):
         )
 
     def handle_account_found(self, acc_data: dict, pos: QPoint = None):
+        # Always ensure OCR overlay canvas is hidden cleanly!
+        self.hide()
+        if self.rubber_band:
+            self.rubber_band.hide()
+
         if not pos:
             pos = QCursor.pos()
 

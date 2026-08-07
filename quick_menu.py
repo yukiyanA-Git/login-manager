@@ -1,7 +1,6 @@
-import webbrowser
 from PySide6.QtWidgets import QMenu, QWidget, QApplication
-from PySide6.QtCore import Qt, QPoint
-from PySide6.QtGui import QAction, QFont, QIcon, QColor
+from PySide6.QtCore import Qt, QPoint, QUrl
+from PySide6.QtGui import QAction, QFont, QIcon, QColor, QDesktopServices
 
 class QuickTrayMenu(QMenu):
     def __init__(self, manager_win, overlay_instance, parent=None):
@@ -36,7 +35,6 @@ class QuickTrayMenu(QMenu):
             }
         """)
 
-        # Dynamically rebuild menu whenever it is about to pop up!
         self.aboutToShow.connect(self.build_menu)
         self.build_menu()
 
@@ -60,7 +58,7 @@ class QuickTrayMenu(QMenu):
 
         self.addSeparator()
 
-        # Dynamic Bookmark Submenu - Reloads latest accounts on every menu open!
+        # Dynamic Bookmark Submenu
         bookmark_menu = QMenu("🔖  登録サイトを開く (ブックマーク)", self)
         bookmark_menu.setStyleSheet("""
             QMenu {
@@ -128,20 +126,25 @@ class QuickTrayMenu(QMenu):
         self.addAction(action_quit)
 
     def open_bookmark_and_popup(self, acc: dict):
-        url = acc.get("url", "")
+        url = acc.get("url", "").strip()
         if url:
             if not url.startswith("http://") and not url.startswith("https://"):
                 url = "https://" + url
-            webbrowser.open(url)
+            QDesktopServices.openUrl(QUrl(url))
 
+        # Close any active OCR overlays cleanly
+        self.overlay.hide()
+        # Show popup window staying on top so it doesn't get buried!
         self.overlay.handle_account_found(acc)
 
     def trigger_google_auth(self):
+        self.overlay.hide()
         self.manager_win.open_google_dialog()
 
     def trigger_register(self):
         clip_text = QApplication.clipboard().text().strip()
         if clip_text and len(clip_text) < 50:
+            self.overlay.hide()
             self.manager_win.open_add_dialog(initial_name=clip_text)
             self.manager_win.show()
             self.manager_win.raise_()
@@ -158,6 +161,7 @@ class QuickTrayMenu(QMenu):
         self.overlay.show_overlay()
 
     def trigger_manage(self):
+        self.overlay.hide()
         self.manager_win.show()
         self.manager_win.raise_()
         self.manager_win.activateWindow()
