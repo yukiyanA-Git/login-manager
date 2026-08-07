@@ -8,12 +8,12 @@ class FallbackAuthDialog(QDialog):
         super().__init__(parent)
         self.firebase = FirebaseClient()
         self.setWindowTitle("🔒 高セキュリティ認証 (Windows Hello / 予備マスターPIN)")
-        self.setFixedSize(390, 210)
+        self.setFixedSize(400, 230)
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Dialog)
         self.authenticated = False
 
         layout = QVBoxLayout()
-        layout.setSpacing(12)
+        layout.setSpacing(10)
 
         icon_label = QLabel(f"🔒 <b>{item_name}</b> は【高セキュリティ保護】です。")
         icon_label.setStyleSheet("font-size: 13px;")
@@ -31,17 +31,29 @@ class FallbackAuthDialog(QDialog):
         layout.addWidget(self.pin_input)
 
         btn_layout = QHBoxLayout()
+
+        btn_hint = QPushButton("❓ PINヒント")
+        btn_hint.setStyleSheet("color: #4F46E5; background: transparent; font-size: 11px; font-weight: bold; border: none;")
+        btn_hint.clicked.connect(self.show_hint)
+
         btn_cancel = QPushButton("キャンセル")
         btn_cancel.clicked.connect(self.reject)
+
         btn_ok = QPushButton("認証して表示")
         btn_ok.setStyleSheet("background-color: #0078D4; color: white; font-weight: bold; padding: 6px 12px;")
         btn_ok.clicked.connect(self.verify_pin)
 
+        btn_layout.addWidget(btn_hint)
+        btn_layout.addStretch()
         btn_layout.addWidget(btn_cancel)
         btn_layout.addWidget(btn_ok)
         layout.addLayout(btn_layout)
 
         self.setLayout(layout)
+
+    def show_hint(self):
+        hint = self.firebase.master_pin_hint or "ヒントは未設定です (初期: 1234)"
+        QMessageBox.information(self, "PINの思い出せるヒント", f"登録されているPINのヒント:\n\n💡 {hint}")
 
     def verify_pin(self):
         typed = self.pin_input.text().strip()
@@ -49,7 +61,7 @@ class FallbackAuthDialog(QDialog):
             self.authenticated = True
             self.accept()
         else:
-            QMessageBox.warning(self, "認証失敗", "マスターPINが正しくありません。")
+            QMessageBox.warning(self, "認証失敗", "マスターPINが正しくありません。「❓ PINヒント」を押すとヒントが確認できます。")
 
 def authenticate_windows_hello(item_name: str, parent=None) -> bool:
     try:

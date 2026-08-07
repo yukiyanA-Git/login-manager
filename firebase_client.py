@@ -13,6 +13,7 @@ class FirebaseClient:
         self.user_id = ""
         self.user_email = ""
         self.master_pin_hash = ""
+        self.master_pin_hint = ""
         self.load_config()
 
     def _hash_pin(self, pin_str: str) -> str:
@@ -26,6 +27,7 @@ class FirebaseClient:
                 "user_id": "",
                 "user_email": "",
                 "master_pin_hash": self._hash_pin("1234"),
+                "master_pin_hint": "初期番号(1234)",
                 "notes": "Googleアカウント認証＆個人のFirestoreデータ保護設定"
             }
             try:
@@ -43,21 +45,22 @@ class FirebaseClient:
                 self.user_id = data.get("user_id", "")
                 self.user_email = data.get("user_email", "")
                 self.master_pin_hash = data.get("master_pin_hash", self._hash_pin("1234"))
+                self.master_pin_hint = data.get("master_pin_hint", "初期番号(1234)")
         except Exception as e:
             print(f"Error loading Firebase config: {e}")
             self.master_pin_hash = self._hash_pin("1234")
+            self.master_pin_hint = "初期番号(1234)"
 
-    def save_master_pin(self, new_pin: str):
-        """Hashes and saves new custom Master PIN locally and syncs to Google Cloud."""
+    def save_master_pin(self, new_pin: str, hint: str = ""):
         self.master_pin_hash = self._hash_pin(new_pin)
+        if hint:
+            self.master_pin_hint = hint.strip()
         self.save_user_session(user_email=self.user_email, user_id=self.user_id)
 
     def verify_master_pin(self, typed_pin: str) -> bool:
-        """Verifies typed PIN against stored master_pin_hash or default 1234."""
         typed_hash = self._hash_pin(typed_pin)
         if typed_hash == self.master_pin_hash:
             return True
-        # Fallback default check for 1234 if not customized yet
         if typed_pin in ["1234"] and (not self.master_pin_hash or self.master_pin_hash == self._hash_pin("1234")):
             return True
         return False
@@ -77,6 +80,7 @@ class FirebaseClient:
             "user_id": self.user_id,
             "user_email": self.user_email,
             "master_pin_hash": self.master_pin_hash,
+            "master_pin_hint": self.master_pin_hint,
             "notes": "Googleアカウント認証アクティブ"
         }
         try:
@@ -85,13 +89,13 @@ class FirebaseClient:
         except Exception as e:
             print(f"Error saving user session: {e}")
 
-        # Also sync settings to Cloud if user_id exists
         if self.user_id and self.project_id:
             try:
                 url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{self.user_id}/settings/pin_config"
                 body = {
                     "fields": {
                         "master_pin_hash": {"stringValue": self.master_pin_hash},
+                        "master_pin_hint": {"stringValue": self.master_pin_hint},
                         "user_email": {"stringValue": self.user_email}
                     }
                 }
@@ -108,6 +112,7 @@ class FirebaseClient:
             "user_id": "",
             "user_email": "",
             "master_pin_hash": self.master_pin_hash,
+            "master_pin_hint": self.master_pin_hint,
             "notes": "ログアウト状態 (ローカル保存のみ)"
         }
         try:
@@ -153,15 +158,17 @@ class FirebaseClient:
             return None
 
         try:
-            # Fetch master_pin_hash from Cloud if available
             try:
                 settings_url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{self.user_id}/settings/pin_config"
                 s_resp = requests.get(settings_url, timeout=3)
                 if s_resp.status_code == 200:
                     s_data = s_resp.json()
                     c_hash = s_data.get("fields", {}).get("master_pin_hash", {}).get("stringValue", "")
+                    c_hint = s_data.get("fields", {}).get("master_pin_hint", {}).get("stringValue", "")
                     if c_hash:
                         self.master_pin_hash = c_hash
+                    if c_hint:
+                        self.master_pin_hint = c_hint
             except Exception as e:
                 print(f"Error fetching master PIN from cloud: {e}")
 

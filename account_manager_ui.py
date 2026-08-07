@@ -13,15 +13,15 @@ class MasterPinSettingDialog(QDialog):
         super().__init__(parent)
         self.firebase = firebase_client
         self.setWindowTitle("🔑 予備マスターPINの変更")
-        self.setFixedWidth(400)
+        self.setFixedWidth(420)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
         info_label = QLabel(
             "<b>予備マスターPIN（高セキュリティ解除用）の変更</b><br>"
-            "Windows Helloが使えない環境や会社PCで使う暗証番号（4〜6桁）を変更します。<br>"
-            "※設定したマスターPINはGoogleクラウド経由であなたの他PCへも自動同期されます。"
+            "Windows Helloが使えない環境や会社PCで使う暗証番号（4〜6桁）と、思い出せるヒントを設定します。<br>"
+            "※マスターPINおよびヒントはGoogleクラウド経由であなたの他PCへも自動同期されます。"
         )
         info_label.setWordWrap(True)
         info_label.setStyleSheet("color: #374151; font-size: 11px;")
@@ -40,9 +40,14 @@ class MasterPinSettingDialog(QDialog):
         self.confirm_pin_input.setEchoMode(QLineEdit.Password)
         self.confirm_pin_input.setPlaceholderText("新しいマスターPIN (確認用再入力)")
 
+        self.hint_input = QLineEdit()
+        self.hint_input.setText(self.firebase.master_pin_hint)
+        self.hint_input.setPlaceholderText("例: 母親の誕生日の下4桁 / 愛車のナンバー")
+
         form.addRow("現在のマスターPIN:", self.old_pin_input)
         form.addRow("新しいマスターPIN:", self.new_pin_input)
         form.addRow("新しいPIN(確認):", self.confirm_pin_input)
+        form.addRow("忘れた時のヒント:", self.hint_input)
         layout.addLayout(form)
 
         btn_box = QHBoxLayout()
@@ -61,6 +66,7 @@ class MasterPinSettingDialog(QDialog):
         old_typed = self.old_pin_input.text().strip()
         new_typed = self.new_pin_input.text().strip()
         confirm_typed = self.confirm_pin_input.text().strip()
+        hint_typed = self.hint_input.text().strip()
 
         if not self.firebase.verify_master_pin(old_typed):
             QMessageBox.warning(self, "エラー", "現在のマスターPINが正しくありません。")
@@ -74,8 +80,8 @@ class MasterPinSettingDialog(QDialog):
             QMessageBox.warning(self, "エラー", "新しいマスターPINと確認用の入力が一致しません。")
             return
 
-        self.firebase.save_master_pin(new_typed)
-        QMessageBox.information(self, "変更完了", "予備マスターPINを正常に変更・同期保存しました。")
+        self.firebase.save_master_pin(new_typed, hint=hint_typed)
+        QMessageBox.information(self, "変更完了", "予備マスターPINおよびヒントメモを正常に変更・同期保存しました。")
         self.accept()
 
 
@@ -394,7 +400,7 @@ class AccountManagerWindow(QMainWindow):
         btn_export.clicked.connect(self.export_all_accounts_csv)
 
         btn_import = QPushButton("📥 CSV一括取り込み")
-        btn_import.setStyleSheet("background-color: #6366F1; color: white; font-weight: bold; padding: 6px 12px;")
+        btn_import.setStyleSheet("background-color: #6366F1; color: white; font-weight: bold; padding: 6px 14px;")
         btn_import.clicked.connect(self.import_csv)
 
         btn_test_overlay = QPushButton("🔍 クリップボード / 画面で検索")
