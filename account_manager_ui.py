@@ -1,3 +1,5 @@
+import os
+import csv
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QMessageBox,
@@ -69,7 +71,7 @@ class AccountAddDialog(QDialog):
         is_edit = bool(edit_data)
 
         self.setWindowTitle("✏️ アカウント情報の編集" if is_edit else "新しいログイン情報の登録")
-        self.setFixedWidth(450)
+        self.setFixedWidth(470)
         self.overlay_callback = overlay_callback
         self.logo_b64 = logo_b64 or (edit_data.get("logo_image", "") if edit_data else "")
         self.extra_expanded = is_edit
@@ -77,10 +79,19 @@ class AccountAddDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
-        if self.logo_b64:
-            logo_label = QLabel("🖼️ 画面上のロゴ画像キャプチャ保存済み")
-            logo_label.setStyleSheet("color: #10B981; font-weight: bold; font-size: 11px;")
-            layout.addWidget(logo_label)
+        # Logo status and capture/change button line
+        logo_box = QHBoxLayout()
+        self.logo_status_label = QLabel("🖼️ ロゴ画像: あり (比較照合可能)" if self.logo_b64 else "🖼️ ロゴ画像: 未登録")
+        self.logo_status_label.setStyleSheet("color: #059669; font-weight: bold; font-size: 11px;" if self.logo_b64 else "color: #9CA3AF; font-size: 11px;")
+
+        btn_capture_logo = QPushButton("🖼️ 画面からロゴ画像を取得/変更")
+        btn_capture_logo.setStyleSheet("background-color: #059669; color: white; font-size: 11px; font-weight: bold;")
+        btn_capture_logo.clicked.connect(self.trigger_capture_logo)
+
+        logo_box.addWidget(self.logo_status_label)
+        logo_box.addStretch()
+        logo_box.addWidget(btn_capture_logo)
+        layout.addLayout(logo_box)
 
         form_layout = QFormLayout()
         form_layout.setSpacing(10)
@@ -195,6 +206,20 @@ class AccountAddDialog(QDialog):
         btn_box.addWidget(btn_save)
         layout.addLayout(btn_box)
 
+    def trigger_capture_logo(self):
+        if self.overlay_callback:
+            self.hide()
+            self.overlay_callback(self.set_logo_and_reopen)
+
+    def set_logo_and_reopen(self, detected_name: str, logo_b64: str = ""):
+        if logo_b64:
+            self.logo_b64 = logo_b64
+            self.logo_status_label.setText("🖼️ ロゴ画像: キャプチャ登録完了")
+            self.logo_status_label.setStyleSheet("color: #059669; font-weight: bold; font-size: 11px;")
+        if detected_name and not self.name_input.text():
+            self.name_input.setText(detected_name)
+        self.show()
+
     def toggle_extra_fields(self):
         self.extra_expanded = not self.extra_expanded
         self.extra_widget.setVisible(self.extra_expanded)
@@ -218,6 +243,8 @@ class AccountAddDialog(QDialog):
             self.name_input.setText(detected_name)
         if logo_b64:
             self.logo_b64 = logo_b64
+            self.logo_status_label.setText("🖼️ ロゴ画像: あり (比較照合可能)")
+            self.logo_status_label.setStyleSheet("color: #059669; font-weight: bold; font-size: 11px;")
         self.show()
 
     def get_data(self):
@@ -283,6 +310,10 @@ class AccountManagerWindow(QMainWindow):
         btn_add.setStyleSheet("background-color: #10B981; color: white; font-weight: bold; padding: 6px 14px;")
         btn_add.clicked.connect(lambda: self.open_add_dialog())
 
+        btn_template = QPushButton("📄 CSVテンプレート保存")
+        btn_template.setStyleSheet("background-color: #059669; color: white; font-weight: bold; padding: 6px 12px;")
+        btn_template.clicked.connect(self.export_csv_template)
+
         btn_import = QPushButton("📥 CSV一括取り込み")
         btn_import.setStyleSheet("background-color: #6366F1; color: white; font-weight: bold; padding: 6px 14px;")
         btn_import.clicked.connect(self.import_csv)
@@ -292,6 +323,7 @@ class AccountManagerWindow(QMainWindow):
         btn_test_overlay.clicked.connect(self.trigger_search)
 
         action_layout.addWidget(btn_add)
+        action_layout.addWidget(btn_template)
         action_layout.addWidget(btn_import)
         action_layout.addStretch()
         action_layout.addWidget(btn_test_overlay)
@@ -304,6 +336,21 @@ class AccountManagerWindow(QMainWindow):
         main_layout.addWidget(self.table)
 
         self.refresh_table()
+
+    def export_csv_template(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "取込用CSVテンプレートの保存", "import_template.csv", "CSV Files (*.csv)")
+        if file_path:
+            headers = ["会社名", "製品名1", "製品名2", "ID", "パスワード", "セキュリティレベル", "備考", "秘密の質問", "秘密の答え", "カテゴリー", "URL"]
+            rows = [
+                ["楽天市場", "楽天Ichiba", "", "rakuten_user@example.com", "RakutenPass2026!", "1", "ポイントカード会員", "", "", "ショッピング", "https://www.rakuten.co.jp"],
+                ["SBI証券", "SBIネット証券", "", "sbi_account_8899", "SBIStrictSecuredPass#999", "3", "取引暗号コード: 1234", "母親の旧姓", "田中", "金融・資産", "https://www.sbisec.co.jp"],
+                ["Sansan", "Eight", "Sansan名刺", "user_sansan@example.com", "SansanPassword#2026", "1", "名刺管理サービスEight", "", "", "ビジネス", "https://8card.net"]
+            ]
+            with open(file_path, "w", encoding="utf-8-sig", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(headers)
+                writer.writerows(rows)
+            QMessageBox.information(self, "テンプレート保存完了", f"取込用CSVテンプレートを出力しました:\n\n{file_path}")
 
     def open_google_dialog(self):
         dialog = GoogleAuthDialog(self.vault.firebase, self)
