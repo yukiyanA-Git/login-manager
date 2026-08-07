@@ -99,14 +99,12 @@ class CryptoVault:
             return None
         q = query.strip().lower()
 
-        # Exact match
         for acc in self.accounts:
             aliases = acc.get("aliases", [acc.get("name", "").lower()])
             for a in aliases:
                 if q == a or q in a or a in q:
                     return acc
 
-        # Fuzzy match
         all_terms = []
         term_map = {}
         for acc in self.accounts:
@@ -149,8 +147,32 @@ class CryptoVault:
         return self.find_account_by_name(clean_title)
 
     def find_account_by_logo(self, target_img) -> Optional[Dict]:
-        """Finds matching account using visual logo image similarity comparison."""
         return match_logo_image(target_img, self.accounts, threshold=0.75)
+
+    def export_accounts_to_csv(self, file_path: str) -> int:
+        """Exports all registered accounts to CSV file with UTF-8 BOM encoding."""
+        headers = ["会社名", "製品名1", "製品名2", "ID", "パスワード", "セキュリティレベル", "備考", "秘密の質問", "秘密の答え", "カテゴリー", "URL"]
+        rows = []
+        for acc in self.accounts:
+            rows.append([
+                acc.get("name", ""),
+                acc.get("alias1", ""),
+                acc.get("alias2", ""),
+                acc.get("username", ""),
+                acc.get("password", ""),
+                str(acc.get("security_level", 1)),
+                acc.get("notes", ""),
+                acc.get("sec_question", ""),
+                acc.get("sec_answer", ""),
+                acc.get("category", "一般"),
+                acc.get("url", "")
+            ])
+
+        with open(file_path, "w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+            writer.writerows(rows)
+        return len(rows)
 
     def import_csv(self, file_path: str) -> int:
         count = 0

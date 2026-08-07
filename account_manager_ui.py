@@ -270,7 +270,7 @@ class AccountManagerWindow(QMainWindow):
         self.overlay = overlay_instance
 
         self.setWindowTitle("ログインマネージャー - アカウント管理 & Googleクラウド同期")
-        self.resize(900, 540)
+        self.resize(920, 540)
         self.init_ui()
 
     def init_ui(self):
@@ -313,6 +313,10 @@ class AccountManagerWindow(QMainWindow):
         btn_template.setStyleSheet("background-color: #059669; color: white; font-weight: bold; padding: 6px 12px;")
         btn_template.clicked.connect(self.export_csv_template)
 
+        btn_export = QPushButton("📤 登録データをCSV出力(バックアップ)")
+        btn_export.setStyleSheet("background-color: #2563EB; color: white; font-weight: bold; padding: 6px 12px;")
+        btn_export.clicked.connect(self.export_all_accounts_csv)
+
         btn_import = QPushButton("📥 CSV一括取り込み")
         btn_import.setStyleSheet("background-color: #6366F1; color: white; font-weight: bold; padding: 6px 14px;")
         btn_import.clicked.connect(self.import_csv)
@@ -323,6 +327,7 @@ class AccountManagerWindow(QMainWindow):
 
         action_layout.addWidget(btn_add)
         action_layout.addWidget(btn_template)
+        action_layout.addWidget(btn_export)
         action_layout.addWidget(btn_import)
         action_layout.addStretch()
         action_layout.addWidget(btn_test_overlay)
@@ -340,16 +345,27 @@ class AccountManagerWindow(QMainWindow):
         file_path, _ = QFileDialog.getSaveFileName(self, "CSV一括取込用の雛形データを出力保存", "import_template.csv", "CSV Files (*.csv)")
         if file_path:
             headers = ["会社名", "製品名1", "製品名2", "ID", "パスワード", "セキュリティレベル", "備考", "秘密の質問", "秘密の答え", "カテゴリー", "URL"]
-            rows = [
-                ["楽天市場", "楽天Ichiba", "", "rakuten_user@example.com", "RakutenPass2026!", "1", "ポイントカード会員", "", "", "ショッピング", "https://www.rakuten.co.jp"],
-                ["SBI証券", "SBIネット証券", "", "sbi_account_8899", "SBIStrictSecuredPass#999", "3", "取引暗号コード: 1234", "母親の旧姓", "田中", "金融・資産", "https://www.sbisec.co.jp"],
-                ["Sansan", "Eight", "Sansan名刺", "user_sansan@example.com", "SansanPassword#2026", "1", "名刺管理サービスEight", "", "", "ビジネス", "https://8card.net"]
+            sample_row = [
+                "サンプル株式会社 (記入例)", "サンプル製品名1", "製品名別名2",
+                "sample_user_id@example.com", "SamplePass2026!", "1",
+                "ここに備考メモを記入", "秘密の質問サンプル", "秘密の答えサンプル",
+                "一般", "https://example.com"
             ]
             with open(file_path, "w", encoding="utf-8-sig", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(headers)
-                writer.writerows(rows)
-            QMessageBox.information(self, "雛形出力完了", f"CSV一括取込用の雛形データを出力しました:\n\n{file_path}")
+                writer.writerow(sample_row)
+            QMessageBox.information(self, "雛形出力完了", f"CSV一括取込用の雛形データ（記入例1行付き）を出力しました:\n\n{file_path}")
+
+    def export_all_accounts_csv(self):
+        if not self.vault.accounts:
+            QMessageBox.warning(self, "出力エラー", "出力する登録データが存在しません。")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(self, "登録データのCSVバックアップ出力", "my_passwords_backup.csv", "CSV Files (*.csv)")
+        if file_path:
+            count = self.vault.export_accounts_to_csv(file_path)
+            QMessageBox.information(self, "バックアップ完了", f"現在登録されている {count} 件のデータをCSV出力しました:\n\n{file_path}")
 
     def open_google_dialog(self):
         dialog = GoogleAuthDialog(self.vault.firebase, self)
