@@ -70,23 +70,22 @@ def main():
     tray = QSystemTrayIcon(app_icon, app)
     tray.setToolTip("ログインマネージャー - クリックでクイック操作")
 
-    # Custom Quick Menu
     quick_menu = QuickTrayMenu(manager_win, overlay)
     tray.setContextMenu(quick_menu)
 
-    # Left-Click / Trigger -> Show Quick Menu Popup directly above tray icon!
+    # Clean Activation Handler: Only opens Quick Menu, never triggers OCR automatically!
     def on_tray_activated(reason):
-        if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick, QSystemTrayIcon.Context):
-            geom = tray.geometry()
-            pos = geom.topLeft() if geom.isValid() else QApplication.primaryScreen().geometry().bottomRight() - QPoint(200, 200)
-            quick_menu.exec(pos)
+        quick_menu.build_menu()
+        geom = tray.geometry()
+        pos = geom.topLeft() if geom.isValid() else QApplication.primaryScreen().geometry().bottomRight() - QPoint(220, 250)
+        quick_menu.exec(pos)
 
     tray.activated.connect(on_tray_activated)
     tray.show()
 
     tray.showMessage(
         "ログインマネージャー常駐完了",
-        "右下の 🔑 アイコンを左クリックするとクイック操作メニューが開きます！",
+        "右下の 🔑 アイコンをクリックするとクイック操作メニューが開きます！",
         QSystemTrayIcon.Information,
         4000
     )

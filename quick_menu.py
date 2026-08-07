@@ -36,6 +36,8 @@ class QuickTrayMenu(QMenu):
             }
         """)
 
+        # Dynamically rebuild menu whenever it is about to pop up!
+        self.aboutToShow.connect(self.build_menu)
         self.build_menu()
 
     def build_menu(self):
@@ -58,7 +60,7 @@ class QuickTrayMenu(QMenu):
 
         self.addSeparator()
 
-        # Bookmark Submenu
+        # Dynamic Bookmark Submenu - Reloads latest accounts on every menu open!
         bookmark_menu = QMenu("🔖  登録サイトを開く (ブックマーク)", self)
         bookmark_menu.setStyleSheet("""
             QMenu {
@@ -78,7 +80,8 @@ class QuickTrayMenu(QMenu):
         """)
 
         has_bookmarks = False
-        for acc in self.manager_win.vault.accounts:
+        accounts = self.manager_win.vault.accounts
+        for acc in accounts:
             name = acc.get("name", "")
             url = acc.get("url", "")
             if name:
@@ -131,7 +134,6 @@ class QuickTrayMenu(QMenu):
                 url = "https://" + url
             webbrowser.open(url)
 
-        # Show popup window staying on top so it doesn't get buried!
         self.overlay.handle_account_found(acc)
 
     def trigger_google_auth(self):

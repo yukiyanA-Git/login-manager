@@ -79,7 +79,6 @@ class AccountAddDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
-        # Logo status and capture/change button line
         logo_box = QHBoxLayout()
         self.logo_status_label = QLabel("🖼️ ロゴ画像: あり (比較照合可能)" if self.logo_b64 else "🖼️ ロゴ画像: 未登録")
         self.logo_status_label.setStyleSheet("color: #059669; font-weight: bold; font-size: 11px;" if self.logo_b64 else "color: #9CA3AF; font-size: 11px;")
@@ -310,7 +309,7 @@ class AccountManagerWindow(QMainWindow):
         btn_add.setStyleSheet("background-color: #10B981; color: white; font-weight: bold; padding: 6px 14px;")
         btn_add.clicked.connect(lambda: self.open_add_dialog())
 
-        btn_template = QPushButton("📄 CSVテンプレート保存")
+        btn_template = QPushButton("📄 CSV雛形データを出力")
         btn_template.setStyleSheet("background-color: #059669; color: white; font-weight: bold; padding: 6px 12px;")
         btn_template.clicked.connect(self.export_csv_template)
 
@@ -338,7 +337,7 @@ class AccountManagerWindow(QMainWindow):
         self.refresh_table()
 
     def export_csv_template(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, "取込用CSVテンプレートの保存", "import_template.csv", "CSV Files (*.csv)")
+        file_path, _ = QFileDialog.getSaveFileName(self, "CSV一括取込用の雛形データを出力保存", "import_template.csv", "CSV Files (*.csv)")
         if file_path:
             headers = ["会社名", "製品名1", "製品名2", "ID", "パスワード", "セキュリティレベル", "備考", "秘密の質問", "秘密の答え", "カテゴリー", "URL"]
             rows = [
@@ -350,7 +349,7 @@ class AccountManagerWindow(QMainWindow):
                 writer = csv.writer(f)
                 writer.writerow(headers)
                 writer.writerows(rows)
-            QMessageBox.information(self, "テンプレート保存完了", f"取込用CSVテンプレートを出力しました:\n\n{file_path}")
+            QMessageBox.information(self, "雛形出力完了", f"CSV一括取込用の雛形データを出力しました:\n\n{file_path}")
 
     def open_google_dialog(self):
         dialog = GoogleAuthDialog(self.vault.firebase, self)
@@ -409,7 +408,6 @@ class AccountManagerWindow(QMainWindow):
             self.table.setItem(row, 3, item_sec)
             self.table.setItem(row, 4, item_notes)
 
-            # Action Buttons (Edit + Delete)
             action_widget = QWidget()
             action_layout = QHBoxLayout(action_widget)
             action_layout.setContentsMargins(2, 2, 2, 2)
