@@ -8,6 +8,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QClipboard
 
+from autostart_helper import is_autostart_enabled, set_autostart
+
 class MasterPinSettingDialog(QDialog):
     def __init__(self, firebase_client, parent=None):
         super().__init__(parent)
@@ -248,7 +250,7 @@ class AccountAddDialog(QDialog):
             self.sec_q_input.setText(edit_data.get("sec_question", ""))
 
         self.sec_a_input = QLineEdit()
-        self.sec_a_input.setPlaceholderText("秘密の質問の答え")
+        self.sec_a_input.setPlaceholderText("秘密の答え")
         if is_edit:
             self.sec_a_input.setText(edit_data.get("sec_answer", ""))
 
@@ -346,8 +348,8 @@ class AccountManagerWindow(QMainWindow):
         self.vault = vault_instance
         self.overlay = overlay_instance
 
-        self.setWindowTitle("ログインマネージャー - アカウント管理 & Googleクラウド同期")
-        self.resize(920, 540)
+        self.setWindowTitle("ログインマネージャー - アカウント管理 & 設定")
+        self.resize(950, 560)
         self.init_ui()
 
     def init_ui(self):
@@ -355,33 +357,40 @@ class AccountManagerWindow(QMainWindow):
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
 
-        header_box = QGroupBox("クラウド連携 ＆ 同期ステータス")
+        header_box = QGroupBox("クラウド同期 ＆ アプリ動作設定")
         header_layout = QHBoxLayout(header_box)
 
         user_email = self.vault.firebase.user_email
         if user_email:
-            status_text = f"🔴 Googleアカウント連動中 ({user_email})"
+            status_text = f"🔴 Google連動中 ({user_email})"
         else:
-            status_text = "🟡 未サインイン (ローカル保存のみ)"
+            status_text = "🟡 未サインイン (ローカル保存)"
 
         self.status_label = QLabel(status_text)
-        self.status_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self.status_label.setFont(QFont("Segoe UI", 9, QFont.Bold))
 
-        btn_google = QPushButton("🔴 Googleでサインイン")
-        btn_google.setStyleSheet("background-color: #DC2626; color: white; font-weight: bold;")
+        btn_google = QPushButton("🔴 Googleサインイン")
+        btn_google.setStyleSheet("background-color: #DC2626; color: white; font-weight: bold; padding: 4px 10px;")
         btn_google.clicked.connect(self.open_google_dialog)
 
         btn_pin = QPushButton("🔑 マスターPIN変更")
-        btn_pin.setStyleSheet("background-color: #374151; color: white; font-weight: bold;")
+        btn_pin.setStyleSheet("background-color: #374151; color: white; font-weight: bold; padding: 4px 10px;")
         btn_pin.clicked.connect(self.open_master_pin_dialog)
 
+        # Windows Autostart Startup Toggle Button
+        self.btn_autostart = QPushButton()
+        self.update_autostart_button_style()
+        self.btn_autostart.clicked.connect(self.toggle_autostart)
+
         btn_sync_now = QPushButton("🔄 今すぐ同期")
+        btn_sync_now.setStyleSheet("padding: 4px 10px;")
         btn_sync_now.clicked.connect(self.sync_now)
 
         header_layout.addWidget(self.status_label)
         header_layout.addStretch()
         header_layout.addWidget(btn_google)
         header_layout.addWidget(btn_pin)
+        header_layout.addWidget(self.btn_autostart)
         header_layout.addWidget(btn_sync_now)
         main_layout.addWidget(header_box)
 
@@ -423,6 +432,28 @@ class AccountManagerWindow(QMainWindow):
 
         self.refresh_table()
 
+    def update_autostart_button_style(self):
+        enabled = is_autostart_enabled()
+        if enabled:
+            self.btn_autostart.setText("⚙️ PC起動時自動スタート: ON")
+            self.btn_autostart.setStyleSheet("background-color: #059669; color: white; font-weight: bold; padding: 4px 10px;")
+            self.btn_autostart.setToolTip("クリックするとPC起動時の自動常駐を無効化(OFF)にします。")
+        else:
+            self.btn_autostart.setText("⚙️ PC起動時自動スタート: OFF")
+            self.btn_autostart.setStyleSheet("background-color: #4B5563; color: white; padding: 4px 10px;")
+            self.btn_autostart.setToolTip("クリックするとPC起動時に自動でタスクバー右下に常駐スタート(ON)します。")
+
+    def toggle_autostart(self):
+        current_state = is_autostart_enabled()
+        new_state = not current_state
+        success = set_autostart(new_state)
+        if success:
+            self.update_autostart_button_style()
+            msg = "【PC起動時の自動常駐: ON】に設定しました。\nパソコンの起動時に自動でタスクバー右下に常駐スタートします。" if new_state else "【PC起動時の自動常駐: OFF】に設定しました。\n必要な時にダブルクリックで手動起動してください。"
+            QMessageBox.information(self, "設定変更完了", msg)
+        else:
+            QMessageBox.warning(self, "設定エラー", "スタートアップ設定の変更に失敗しました。")
+
     def open_master_pin_dialog(self):
         dialog = MasterPinSettingDialog(self.vault.firebase, self)
         dialog.exec()
@@ -458,9 +489,9 @@ class AccountManagerWindow(QMainWindow):
         if dialog.exec() == QDialog.Accepted:
             user_email = self.vault.firebase.user_email
             if user_email:
-                status_text = f"🔴 Googleアカウント連動中 ({user_email})"
+                status_text = f"🔴 Google連動中 ({user_email})"
             else:
-                status_text = "🟡 未サインイン (ローカル保存のみ)"
+                status_text = "🟡 未サインイン (ローカル保存)"
             self.status_label.setText(status_text)
 
             cloud_accs = self.vault.firebase.fetch_from_cloud()
