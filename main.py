@@ -68,15 +68,15 @@ def main():
     app.setWindowIcon(app_icon)
 
     tray = QSystemTrayIcon(app_icon, app)
-    tray.setToolTip("ログインマネージャー - クリックでクイック操作")
+    tray.setToolTip("ログインマネージャー - 右クリックでクイック操作")
 
     quick_menu = QuickTrayMenu(manager_win, overlay)
     tray.setContextMenu(quick_menu)
 
-    # Strictly guarded tray activation: Show Quick Menu ONLY, never open Account Manager automatically!
+    # Strictly handle Right-Click ONLY for opening Quick Menu! Left-click is completely ignored!
     def on_tray_activated(reason):
         overlay.hide()
-        if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.Context):
+        if reason == QSystemTrayIcon.Context:
             quick_menu.build_menu()
             quick_menu.popup(QCursor.pos())
 
@@ -85,7 +85,7 @@ def main():
 
     tray.showMessage(
         "ログインマネージャー常駐完了",
-        "右下の 🔑 アイコンをクリックするとクイック操作メニューが開きます！",
+        "右下の 🔑 アイコンを右クリックするとクイック操作メニューが開きます！",
         QSystemTrayIcon.Information,
         4000
     )
