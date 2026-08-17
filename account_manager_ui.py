@@ -3,10 +3,11 @@ import csv
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QMessageBox,
-    QDialog, QFormLayout, QLineEdit, QComboBox, QGroupBox, QTextEdit, QApplication
+    QDialog, QFormLayout, QLineEdit, QComboBox, QGroupBox, QTextEdit, QApplication,
+    QFrame
 )
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QClipboard
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QColor, QFont, QClipboard, QDesktopServices
 
 from autostart_helper import is_autostart_enabled, set_autostart
 
@@ -349,7 +350,7 @@ class AccountManagerWindow(QMainWindow):
         self.overlay = overlay_instance
 
         self.setWindowTitle("ログインマネージャー - アカウント管理 & 設定")
-        self.resize(950, 560)
+        self.resize(950, 600)
         self.init_ui()
 
     def init_ui(self):
@@ -377,7 +378,6 @@ class AccountManagerWindow(QMainWindow):
         btn_pin.setStyleSheet("background-color: #374151; color: white; font-weight: bold; padding: 4px 10px;")
         btn_pin.clicked.connect(self.open_master_pin_dialog)
 
-        # Windows Autostart Startup Toggle Button
         self.btn_autostart = QPushButton()
         self.update_autostart_button_style()
         self.btn_autostart.clicked.connect(self.toggle_autostart)
@@ -429,6 +429,61 @@ class AccountManagerWindow(QMainWindow):
         self.table.setHorizontalHeaderLabels(["会社名 (製品名)", "ロゴ画像", "ID / ユーザー名", "セキュリティ設定", "備考 / 秘密の質問", "操作"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         main_layout.addWidget(self.table)
+
+        # Bottom Unobtrusive Ad Banner (Chronos & Official Links)
+        ad_frame = QFrame()
+        ad_frame.setStyleSheet("""
+            QFrame {
+                background-color: #1F2937;
+                border: 1px solid #374151;
+                border-radius: 8px;
+                padding: 6px 12px;
+            }
+        """)
+        ad_layout = QHBoxLayout(ad_frame)
+        ad_layout.setContentsMargins(6, 4, 6, 4)
+
+        ad_title = QLabel("📢 <b>おすすめ・連携ツール:</b>")
+        ad_title.setStyleSheet("color: #9CA3AF; font-size: 11px;")
+        ad_layout.addWidget(ad_title)
+
+        btn_chronos = QPushButton("⏱️ Chronos - 高機能タイムトラッキング ＆ 業務管理ツール")
+        btn_chronos.setStyleSheet("""
+            QPushButton {
+                background-color: #4F46E5;
+                color: #FFFFFF;
+                font-weight: bold;
+                font-size: 11px;
+                padding: 4px 10px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #4338CA;
+            }
+        """)
+        btn_chronos.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git")))
+
+        btn_github = QPushButton("🌐 Login Manager 公式GitHub")
+        btn_github.setStyleSheet("""
+            QPushButton {
+                background-color: #374151;
+                color: #F9FAFB;
+                font-weight: bold;
+                font-size: 11px;
+                padding: 4px 10px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #4B5563;
+            }
+        """)
+        btn_github.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git/login-manager")))
+
+        ad_layout.addWidget(btn_chronos)
+        ad_layout.addWidget(btn_github)
+        ad_layout.addStretch()
+
+        main_layout.addWidget(ad_frame)
 
         self.refresh_table()
 

@@ -73,12 +73,14 @@ def main():
     quick_menu = QuickTrayMenu(manager_win, overlay)
     tray.setContextMenu(quick_menu)
 
-    # Clean Activation Handler: Only opens Quick Menu, never triggers OCR automatically!
+    # Strictly guarded tray activation handler: Only show tray menu, never launch OCR!
     def on_tray_activated(reason):
-        quick_menu.build_menu()
-        geom = tray.geometry()
-        pos = geom.topLeft() if geom.isValid() else QApplication.primaryScreen().geometry().bottomRight() - QPoint(220, 250)
-        quick_menu.exec(pos)
+        if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.Context):
+            overlay.hide()
+            quick_menu.build_menu()
+            geom = tray.geometry()
+            pos = geom.topLeft() if geom.isValid() else QApplication.primaryScreen().geometry().bottomRight() - QPoint(220, 250)
+            quick_menu.exec(pos)
 
     tray.activated.connect(on_tray_activated)
     tray.show()
