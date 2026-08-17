@@ -4,7 +4,7 @@ import csv
 import traceback
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMessageBox
 from PySide6.QtCore import Qt, QPoint
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
+from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QCursor
 
 from crypto_vault import CryptoVault
 from overlay_screen import ScreenSelectionOverlay
@@ -73,12 +73,11 @@ def main():
     quick_menu = QuickTrayMenu(manager_win, overlay)
     tray.setContextMenu(quick_menu)
 
-    # Clean activation handler: Ensure OCR canvas is hidden and show Quick Menu only!
+    # Both Left-Click and Right-Click open the Quick Menu cleanly at mouse cursor position!
     def on_tray_activated(reason):
         overlay.hide()
-        if reason == QSystemTrayIcon.Trigger:
-            quick_menu.build_menu()
-            quick_menu.popup(QCursor.pos())
+        quick_menu.build_menu()
+        quick_menu.popup(QCursor.pos())
 
     tray.activated.connect(on_tray_activated)
     tray.show()
