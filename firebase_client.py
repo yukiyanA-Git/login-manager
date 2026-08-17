@@ -48,10 +48,15 @@ class FirebaseClient:
                 data = json.load(f)
                 self.enabled = data.get("enabled", True)
                 self.project_id = data.get("project_id", "login-manager-official")
-                self.user_id = data.get("user_id", "")
-                self.user_email = data.get("user_email", "")
+                self.user_email = data.get("user_email", "").strip()
+                self.user_id = data.get("user_id", "").strip()
                 self.master_pin_hash = data.get("master_pin_hash", self._hash_pin("1234"))
                 self.master_pin_hint = data.get("master_pin_hint", "初期番号(1234)")
+
+                # Automatic user_id reconstruction if user_email exists!
+                if self.user_email and not self.user_id:
+                    safe_id = self.user_email.lower().replace("@", "_at_").replace(".", "_")
+                    self.user_id = f"usr_{safe_id}"
         except Exception as e:
             print(f"Error loading Firebase config: {e}")
             self.master_pin_hash = self._hash_pin("1234")
@@ -92,7 +97,7 @@ class FirebaseClient:
         try:
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            print(f"[Firebase Session Saved] Email '{self.user_email}' saved permanently to {CONFIG_FILE}")
+            print(f"[Firebase Session Saved] User '{self.user_email}' (ID: {self.user_id}) saved to {CONFIG_FILE}")
         except Exception as e:
             print(f"Error saving user session: {e}")
 
@@ -129,8 +134,12 @@ class FirebaseClient:
             print(f"Error saving logout session: {e}")
 
     def sync_to_cloud(self, accounts: List[Dict]) -> bool:
-        if not self.enabled or not self.user_id or not self.project_id:
+        if not self.enabled or not self.user_email:
             return False
+
+        if not self.user_id:
+            safe_id = self.user_email.lower().replace("@", "_at_").replace(".", "_")
+            self.user_id = f"usr_{safe_id}"
 
         try:
             url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{self.user_id}/accounts"
@@ -154,15 +163,19 @@ class FirebaseClient:
                 }
                 body = {"fields": fields}
                 response = requests.patch(doc_url, json=body, timeout=5)
-            print(f"[Firebase Cloud] Per-user sync completed for User '{self.user_email}'.")
+            print(f"[Firebase Cloud] Successfully uploaded {len(accounts)} accounts for User '{self.user_email}'.")
             return True
         except Exception as e:
-            print(f"[Firebase Cloud Notice] Sync error: {e}")
+            print(f"[Firebase Cloud Notice] Sync upload error: {e}")
             return False
 
     def fetch_from_cloud(self) -> Optional[List[Dict]]:
-        if not self.enabled or not self.user_id or not self.project_id:
+        if not self.enabled or not self.user_email:
             return None
+
+        if not self.user_id:
+            safe_id = self.user_email.lower().replace("@", "_at_").replace(".", "_")
+            self.user_id = f"usr_{safe_id}"
 
         try:
             try:

@@ -34,27 +34,48 @@ class CryptoVault:
         return key
 
     def load_vault(self):
-        cloud_accs = self.firebase.fetch_from_cloud()
-        if cloud_accs is not None and len(cloud_accs) > 0:
-            self.accounts = cloud_accs
-            self.save_local_file()
-            return
-
+        # First load local file if exists
+        local_accs = []
         if os.path.exists(DATA_FILE):
             try:
                 with open(DATA_FILE, "rb") as f:
                     encrypted_data = f.read()
                 decrypted_data = self.fernet.decrypt(encrypted_data).decode("utf-8")
-                self.accounts = json.loads(decrypted_data)
+                local_accs = json.loads(decrypted_data)
             except Exception as e:
-                print(f"Error loading vault: {e}")
-                self.accounts = []
-        else:
-            self.accounts = []
+                print(f"Error loading local vault: {e}")
+                local_accs = []
+
+        self.accounts = local_accs
+
+        # Fetch cloud accounts if Google user email is active
+        cloud_accs = self.firebase.fetch_from_cloud()
+        if cloud_accs is not None and len(cloud_accs) > 0:
+            self.merge_accounts(cloud_accs)
+
+    def merge_accounts(self, cloud_accs: List[Dict]):
+        existing_ids = {a.get("id"): a for a in self.accounts if a.get("id")}
+        existing_keys = {f"{a.get('name', '').lower()}_{a.get('username', '').lower()}": a for a in self.accounts}
+
+        added = False
+        for c_acc in cloud_accs:
+            c_id = c_acc.get("id")
+            c_key = f"{c_acc.get('name', '').lower()}_{c_acc.get('username', '').lower()}"
+
+            if c_id and c_id in existing_ids:
+                # Update existing local account with cloud values
+                existing_ids[c_id].update(c_acc)
+            elif c_key in existing_keys:
+                existing_keys[c_key].update(c_acc)
+            else:
+                self.accounts.append(c_acc)
+                added = True
+
+        self.save_vault()
 
     def save_vault(self):
         self.save_local_file()
-        if self.firebase.enabled:
+        if self.firebase.user_email:
             self.firebase.sync_to_cloud(self.accounts)
 
     def save_local_file(self):
