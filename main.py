@@ -73,11 +73,12 @@ def main():
     quick_menu = QuickTrayMenu(manager_win, overlay)
     tray.setContextMenu(quick_menu)
 
-    # Both Left-Click and Right-Click open the Quick Menu cleanly at mouse cursor position!
+    # Strictly guarded tray activation: Show Quick Menu ONLY, never open Account Manager automatically!
     def on_tray_activated(reason):
         overlay.hide()
-        quick_menu.build_menu()
-        quick_menu.popup(QCursor.pos())
+        if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.Context):
+            quick_menu.build_menu()
+            quick_menu.popup(QCursor.pos())
 
     tray.activated.connect(on_tray_activated)
     tray.show()

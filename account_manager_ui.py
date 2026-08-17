@@ -353,6 +353,11 @@ class AccountManagerWindow(QMainWindow):
         self.resize(950, 600)
         self.init_ui()
 
+    def closeEvent(self, event):
+        # Override close button [X] to hide to tray instead of quitting!
+        event.ignore()
+        self.hide()
+
     def init_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
