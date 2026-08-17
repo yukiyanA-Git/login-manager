@@ -1,3 +1,4 @@
+import sys
 import os
 import json
 import csv
@@ -7,8 +8,13 @@ from cryptography.fernet import Fernet
 from firebase_client import FirebaseClient
 from logo_matcher import match_logo_image
 
-KEY_FILE = os.path.join(os.path.dirname(__file__), "vault_key.key")
-DATA_FILE = os.path.join(os.path.dirname(__file__), "vault_data.json")
+def get_app_dir() -> str:
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+KEY_FILE = os.path.join(get_app_dir(), "vault_key.key")
+DATA_FILE = os.path.join(get_app_dir(), "vault_data.json")
 
 class CryptoVault:
     def __init__(self):
@@ -150,7 +156,6 @@ class CryptoVault:
         return match_logo_image(target_img, self.accounts, threshold=0.75)
 
     def export_accounts_to_csv(self, file_path: str) -> int:
-        """Exports all registered accounts to CSV file with UTF-8 BOM encoding."""
         headers = ["会社名", "製品名1", "製品名2", "ID", "パスワード", "セキュリティレベル", "備考", "秘密の質問", "秘密の答え", "カテゴリー", "URL"]
         rows = []
         for acc in self.accounts:

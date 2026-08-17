@@ -1,10 +1,16 @@
+import sys
 import os
 import json
 import requests
 import hashlib
 from typing import Dict, List, Optional
 
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), "firebase_config.json")
+def get_app_dir() -> str:
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+CONFIG_FILE = os.path.join(get_app_dir(), "firebase_config.json")
 
 class FirebaseClient:
     def __init__(self):
@@ -86,6 +92,7 @@ class FirebaseClient:
         try:
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+            print(f"[Firebase Session Saved] Email '{self.user_email}' saved permanently to {CONFIG_FILE}")
         except Exception as e:
             print(f"Error saving user session: {e}")
 
