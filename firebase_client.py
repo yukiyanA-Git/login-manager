@@ -5,12 +5,16 @@ import requests
 import hashlib
 from typing import Dict, List, Optional
 
-def get_app_dir() -> str:
-    if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.abspath(__file__))
+def get_persistent_data_dir() -> str:
+    appdata = os.getenv('APPDATA')
+    if appdata:
+        data_dir = os.path.join(appdata, "LoginManager")
+    else:
+        data_dir = os.path.expanduser("~/.login_manager")
+    os.makedirs(data_dir, exist_ok=True)
+    return data_dir
 
-CONFIG_FILE = os.path.join(get_app_dir(), "firebase_config.json")
+CONFIG_FILE = os.path.join(get_persistent_data_dir(), "firebase_config.json")
 
 class FirebaseClient:
     def __init__(self):
@@ -53,7 +57,6 @@ class FirebaseClient:
                 self.master_pin_hash = data.get("master_pin_hash", self._hash_pin("1234"))
                 self.master_pin_hint = data.get("master_pin_hint", "初期番号(1234)")
 
-                # Automatic user_id reconstruction if user_email exists!
                 if self.user_email and not self.user_id:
                     safe_id = self.user_email.lower().replace("@", "_at_").replace(".", "_")
                     self.user_id = f"usr_{safe_id}"
@@ -97,7 +100,7 @@ class FirebaseClient:
         try:
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            print(f"[Firebase Session Saved] User '{self.user_email}' (ID: {self.user_id}) saved to {CONFIG_FILE}")
+            print(f"[Firebase Session Saved] User '{self.user_email}' (ID: {self.user_id}) saved persistently to {CONFIG_FILE}")
         except Exception as e:
             print(f"Error saving user session: {e}")
 

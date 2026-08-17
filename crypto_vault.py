@@ -5,16 +5,12 @@ import csv
 import difflib
 from typing import List, Dict, Optional
 from cryptography.fernet import Fernet
-from firebase_client import FirebaseClient
+from firebase_client import FirebaseClient, get_persistent_data_dir
 from logo_matcher import match_logo_image
 
-def get_app_dir() -> str:
-    if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.abspath(__file__))
-
-KEY_FILE = os.path.join(get_app_dir(), "vault_key.key")
-DATA_FILE = os.path.join(get_app_dir(), "vault_data.json")
+DATA_DIR = get_persistent_data_dir()
+KEY_FILE = os.path.join(DATA_DIR, "vault_key.key")
+DATA_FILE = os.path.join(DATA_DIR, "vault_data.json")
 
 class CryptoVault:
     def __init__(self):
@@ -28,13 +24,24 @@ class CryptoVault:
         if os.path.exists(KEY_FILE):
             with open(KEY_FILE, "rb") as f:
                 return f.read()
+
+        # Check for legacy key file in exe dir if migrating
+        exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(__file__)
+        legacy_key_path = os.path.join(exe_dir, "vault_key.key")
+        if os.path.exists(legacy_key_path):
+            with open(legacy_key_path, "rb") as f:
+                key = f.read()
+            with open(KEY_FILE, "wb") as f:
+                f.write(key)
+            return key
+
         key = Fernet.generate_key()
         with open(KEY_FILE, "wb") as f:
             f.write(key)
         return key
 
     def load_vault(self):
-        # First load local file if exists
+        # 1. Load local persistent data file if exists
         local_accs = []
         if os.path.exists(DATA_FILE):
             try:
@@ -45,10 +52,24 @@ class CryptoVault:
             except Exception as e:
                 print(f"Error loading local vault: {e}")
                 local_accs = []
+        else:
+            # Check for legacy data file in exe dir if migrating
+            exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(__file__)
+            legacy_data_path = os.path.join(exe_dir, "vault_data.json")
+            if os.path.exists(legacy_data_path):
+                try:
+                    with open(legacy_data_path, "rb") as f:
+                        encrypted_data = f.read()
+                    decrypted_data = self.fernet.decrypt(encrypted_data).decode("utf-8")
+                    local_accs = json.loads(decrypted_data)
+                    self.accounts = local_accs
+                    self.save_local_file()
+                except Exception as e:
+                    print(f"Error migrating legacy local vault: {e}")
 
         self.accounts = local_accs
 
-        # Fetch cloud accounts if Google user email is active
+        # 2. Fetch cloud accounts if Google user email is active
         cloud_accs = self.firebase.fetch_from_cloud()
         if cloud_accs is not None and len(cloud_accs) > 0:
             self.merge_accounts(cloud_accs)
@@ -57,19 +78,16 @@ class CryptoVault:
         existing_ids = {a.get("id"): a for a in self.accounts if a.get("id")}
         existing_keys = {f"{a.get('name', '').lower()}_{a.get('username', '').lower()}": a for a in self.accounts}
 
-        added = False
         for c_acc in cloud_accs:
             c_id = c_acc.get("id")
             c_key = f"{c_acc.get('name', '').lower()}_{c_acc.get('username', '').lower()}"
 
             if c_id and c_id in existing_ids:
-                # Update existing local account with cloud values
                 existing_ids[c_id].update(c_acc)
             elif c_key in existing_keys:
                 existing_keys[c_key].update(c_acc)
             else:
                 self.accounts.append(c_acc)
-                added = True
 
         self.save_vault()
 
