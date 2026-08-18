@@ -25,7 +25,6 @@ class CryptoVault:
             with open(KEY_FILE, "rb") as f:
                 return f.read()
 
-        # Check for legacy key file in exe dir if migrating
         exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(__file__)
         legacy_key_path = os.path.join(exe_dir, "vault_key.key")
         if os.path.exists(legacy_key_path):
@@ -40,8 +39,76 @@ class CryptoVault:
             f.write(key)
         return key
 
+    def _get_default_sample_accounts(self) -> List[Dict]:
+        return [
+            {
+                "id": "acc_001",
+                "name": "楽天市場",
+                "alias1": "楽天Ichiba",
+                "alias2": "",
+                "username": "rakuten_user@example.com",
+                "password": "RakutenPass2026!",
+                "security_level": 1,
+                "category": "ショッピング",
+                "notes": "ポイントカード会員アカウント",
+                "sec_question": "",
+                "sec_answer": "",
+                "url": "https://www.rakuten.co.jp",
+                "aliases": ["楽天市場", "楽天ichiba"],
+                "logo_image": ""
+            },
+            {
+                "id": "acc_002",
+                "name": "SBI証券",
+                "alias1": "SBIネット証券",
+                "alias2": "",
+                "username": "sbi_account_8899",
+                "password": "SBIStrictSecuredPass#999",
+                "security_level": 3,
+                "category": "金融・資産",
+                "notes": "取引暗号コード: 1234",
+                "sec_question": "母親の旧姓",
+                "sec_answer": "田中",
+                "url": "https://www.sbisec.co.jp",
+                "aliases": ["sbi証券", "sbiネット証券"],
+                "logo_image": ""
+            },
+            {
+                "id": "acc_003",
+                "name": "Sansan",
+                "alias1": "Eight",
+                "alias2": "Sansan名刺",
+                "username": "user_sansan@example.com",
+                "password": "SansanPassword#2026",
+                "security_level": 1,
+                "category": "ビジネス",
+                "notes": "名刺管理サービスEight連携",
+                "sec_question": "",
+                "sec_answer": "",
+                "url": "https://8card.net",
+                "aliases": ["sansan", "eight", "sansan名刺"],
+                "logo_image": ""
+            },
+            {
+                "id": "acc_004",
+                "name": "マネーフォワード",
+                "alias1": "MFクラウド",
+                "alias2": "マネーフォワードME",
+                "username": "finance_user@example.com",
+                "password": "MoneyForwardStrictPass$99",
+                "security_level": 3,
+                "category": "金融・資産",
+                "notes": "暗号化資産口座連携済み",
+                "sec_question": "ペットの名前",
+                "sec_answer": "ポチ",
+                "url": "https://moneyforward.com",
+                "aliases": ["マネーフォワード", "mfクラウド", "マネーフォワードme"],
+                "logo_image": ""
+            }
+        ]
+
     def load_vault(self):
-        # 1. Load local persistent data file if exists
+        # Always load local persistent data first
         local_accs = []
         if os.path.exists(DATA_FILE):
             try:
@@ -52,27 +119,22 @@ class CryptoVault:
             except Exception as e:
                 print(f"Error loading local vault: {e}")
                 local_accs = []
+
+        if not local_accs:
+            # Populate default sample accounts if empty
+            local_accs = self._get_default_sample_accounts()
+            self.accounts = local_accs
+            self.save_local_file()
         else:
-            # Check for legacy data file in exe dir if migrating
-            exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(__file__)
-            legacy_data_path = os.path.join(exe_dir, "vault_data.json")
-            if os.path.exists(legacy_data_path):
-                try:
-                    with open(legacy_data_path, "rb") as f:
-                        encrypted_data = f.read()
-                    decrypted_data = self.fernet.decrypt(encrypted_data).decode("utf-8")
-                    local_accs = json.loads(decrypted_data)
-                    self.accounts = local_accs
-                    self.save_local_file()
-                except Exception as e:
-                    print(f"Error migrating legacy local vault: {e}")
+            self.accounts = local_accs
 
-        self.accounts = local_accs
-
-        # 2. Fetch cloud accounts if Google user email is active
-        cloud_accs = self.firebase.fetch_from_cloud()
-        if cloud_accs is not None and len(cloud_accs) > 0:
-            self.merge_accounts(cloud_accs)
+        # Fetch cloud accounts safely if Google user email is active
+        try:
+            cloud_accs = self.firebase.fetch_from_cloud()
+            if cloud_accs is not None and len(cloud_accs) > 0:
+                self.merge_accounts(cloud_accs)
+        except Exception as e:
+            print(f"Cloud fetch notice: {e}")
 
     def merge_accounts(self, cloud_accs: List[Dict]):
         existing_ids = {a.get("id"): a for a in self.accounts if a.get("id")}
@@ -89,12 +151,15 @@ class CryptoVault:
             else:
                 self.accounts.append(c_acc)
 
-        self.save_vault()
+        self.save_local_file()
 
     def save_vault(self):
         self.save_local_file()
         if self.firebase.user_email:
-            self.firebase.sync_to_cloud(self.accounts)
+            try:
+                self.firebase.sync_to_cloud(self.accounts)
+            except Exception as e:
+                print(f"Cloud sync notice: {e}")
 
     def save_local_file(self):
         raw_json = json.dumps(self.accounts, ensure_ascii=False, indent=2).encode("utf-8")
