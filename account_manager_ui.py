@@ -354,7 +354,6 @@ class AccountManagerWindow(QMainWindow):
         self.init_ui()
 
     def closeEvent(self, event):
-        # Override close button [X] to hide to tray instead of quitting!
         event.ignore()
         self.hide()
 
@@ -435,58 +434,63 @@ class AccountManagerWindow(QMainWindow):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         main_layout.addWidget(self.table)
 
-        # Bottom Unobtrusive Ad Banner (Chronos & Official Links)
+        # Acrylic Glassmorphism Ad Banner Component (Replicated from Chronos)
         ad_frame = QFrame()
         ad_frame.setStyleSheet("""
             QFrame {
-                background-color: #1F2937;
-                border: 1px solid #374151;
-                border-radius: 8px;
-                padding: 6px 12px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(31, 41, 55, 0.95), stop:1 rgba(17, 24, 39, 0.95));
+                border: 1px solid rgba(212, 175, 55, 0.4);
+                border-radius: 12px;
+                padding: 6px 14px;
+            }
+            QFrame:hover {
+                border: 1px solid rgba(212, 175, 55, 0.8);
             }
         """)
-        ad_layout = QHBoxLayout(ad_frame)
-        ad_layout.setContentsMargins(6, 4, 6, 4)
+        ad_layout = QVBoxLayout(ad_frame)
+        ad_layout.setContentsMargins(8, 6, 8, 6)
+        ad_layout.setSpacing(4)
 
-        ad_title = QLabel("📢 <b>おすすめ・連携ツール:</b>")
-        ad_title.setStyleSheet("color: #9CA3AF; font-size: 11px;")
-        ad_layout.addWidget(ad_title)
+        # Top Content: Sparkle Gold Icon + PREMIUM PARTNER / 広告掲載スペース (Ad Placement Space)
+        top_ad_layout = QHBoxLayout()
+        top_ad_layout.setContentsMargins(0, 0, 0, 0)
 
-        btn_chronos = QPushButton("⏱️ Chronos - 高機能タイムトラッキング ＆ 業務管理ツール")
-        btn_chronos.setStyleSheet("""
+        sparkle_label = QLabel("✨  <b>PREMIUM PARTNER / 広告掲載スペース</b>")
+        sparkle_label.setStyleSheet("color: #E5E7EB; font-size: 11px; letter-spacing: 0.5px;")
+        top_ad_layout.addWidget(sparkle_label)
+        top_ad_layout.addStretch()
+
+        # Link button (Google AdSense tag / Custom URL Banner insertion space)
+        btn_ad_link = QPushButton("🔗 Google AdSenseタグ / 画像バナー / 公式サイトリンクを掲載可能")
+        btn_ad_link.setStyleSheet("""
             QPushButton {
-                background-color: #4F46E5;
-                color: #FFFFFF;
+                background-color: transparent;
+                color: #60A5FA;
                 font-weight: bold;
                 font-size: 11px;
-                padding: 4px 10px;
-                border-radius: 4px;
+                border: none;
+                text-decoration: underline;
             }
             QPushButton:hover {
-                background-color: #4338CA;
+                color: #93C5FD;
             }
         """)
-        btn_chronos.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git")))
+        btn_ad_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git/login-manager")))
+        top_ad_layout.addWidget(btn_ad_link)
 
-        btn_github = QPushButton("🌐 Login Manager 公式GitHub")
-        btn_github.setStyleSheet("""
-            QPushButton {
-                background-color: #374151;
-                color: #F9FAFB;
-                font-weight: bold;
-                font-size: 11px;
-                padding: 4px 10px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #4B5563;
-            }
-        """)
-        btn_github.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git/login-manager")))
+        ad_layout.addLayout(top_ad_layout)
 
-        ad_layout.addWidget(btn_chronos)
-        ad_layout.addWidget(btn_github)
-        ad_layout.addStretch()
+        # Dashed Separator Line
+        sep_line = QFrame()
+        sep_line.setFrameShape(QFrame.HLine)
+        sep_line.setStyleSheet("border-top: 1px dashed rgba(252, 211, 77, 0.3); max-height: 1px;")
+        ad_layout.addWidget(sep_line)
+
+        # Bottom Footer Label: S P O N S O R E D (Gold Spacing)
+        sponsored_label = QLabel("S P O N S O R E D")
+        sponsored_label.setAlignment(Qt.AlignCenter)
+        sponsored_label.setStyleSheet("color: rgba(252, 211, 77, 0.85); font-size: 10px; font-weight: bold; letter-spacing: 3px;")
+        ad_layout.addWidget(sponsored_label)
 
         main_layout.addWidget(ad_frame)
 
