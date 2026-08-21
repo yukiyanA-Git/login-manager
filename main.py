@@ -73,7 +73,6 @@ def main():
     quick_menu = QuickTrayMenu(manager_win, overlay)
     tray.setContextMenu(quick_menu)
 
-    # Strictly handle Right-Click ONLY for opening Quick Menu! Left-click is completely ignored!
     def on_tray_activated(reason):
         overlay.hide()
         if reason == QSystemTrayIcon.Context:
@@ -90,9 +89,11 @@ def main():
         4000
     )
 
-    manager_win.show()
-    manager_win.raise_()
-    manager_win.activateWindow()
+    is_autostart = "--autostart" in sys.argv
+    if not is_autostart:
+        manager_win.show()
+        manager_win.raise_()
+        manager_win.activateWindow()
 
     sys.exit(app.exec())
 
