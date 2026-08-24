@@ -21,6 +21,15 @@ def get_shortcut_path() -> str:
         return os.path.join(startup_dir, "LoginManager.lnk")
     return ""
 
+def remove_all_registry_autostart():
+    """Completely wipe any legacy Registry entries in HKCU & HKLM to avoid double startup."""
+    try:
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_ALL_ACCESS)
+        winreg.DeleteValue(key, APP_NAME)
+        winreg.CloseKey(key)
+    except Exception:
+        pass
+
 def is_autostart_enabled() -> bool:
     shortcut = get_shortcut_path()
     return bool(shortcut and os.path.exists(shortcut))
@@ -29,15 +38,9 @@ def set_autostart(enable: bool) -> bool:
     exe_path = get_executable_path()
     shortcut_path = get_shortcut_path()
 
-    # Clean up legacy Registry Run key to prevent double launch!
-    try:
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_ALL_ACCESS)
-        winreg.DeleteValue(key, APP_NAME)
-        winreg.CloseKey(key)
-    except Exception:
-        pass
+    # Always wipe Registry entries to ensure ONLY 1 startup location exists!
+    remove_all_registry_autostart()
 
-    # Manage single Startup Folder Shortcut with --autostart flag
     if shortcut_path:
         if enable:
             try:

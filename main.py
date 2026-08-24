@@ -3,13 +3,14 @@ import os
 import csv
 import traceback
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMessageBox
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt, QPoint, QSharedMemory
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QCursor
 
 from crypto_vault import CryptoVault
 from overlay_screen import ScreenSelectionOverlay
 from account_manager_ui import AccountManagerWindow
 from quick_menu import QuickTrayMenu
+from autostart_helper import remove_all_registry_autostart
 
 def excepthook(exc_type, exc_value, exc_traceback):
     err_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
@@ -55,6 +56,17 @@ def generate_sample_csv(target_dir: str):
 def main():
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+
+    # Single Instance Guard via QSharedMemory Mutex
+    lock_key = "LoginManager_SingleInstance_Mutex_Key_2026"
+    shared_mem = QSharedMemory(lock_key)
+    if not shared_mem.create(1):
+        # Another instance is already running! Exit silently.
+        print("[Single Instance] Another instance of LoginManager is already running. Exiting second instance.")
+        sys.exit(0)
+
+    # Clean up legacy registry keys that caused double launch on startup
+    remove_all_registry_autostart()
 
     app_dir = os.path.dirname(os.path.abspath(__file__))
     icon_file = ensure_icon_file(app_dir)
