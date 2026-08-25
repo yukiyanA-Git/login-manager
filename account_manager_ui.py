@@ -305,18 +305,33 @@ class AccountAddDialog(QDialog):
         extra_form.setContentsMargins(0, 0, 0, 0)
         extra_form.setSpacing(8)
 
-        self.alias1_input = QLineEdit()
-        self.alias1_input.setPlaceholderText("例: Eight (ログイン画面に製品名がある場合)")
+        # ✨【ユーザー様ご要望反映】第3・第4のカスタム追加項目 (タイトル自由作成 ＋ 文字列)
+        f1_layout = QHBoxLayout()
+        self.field1_name_input = QLineEdit()
+        self.field1_name_input.setPlaceholderText("項目タイトル1 (例: 契約者番号, 第2暗証番号)")
+        self.field1_name_input.setFixedWidth(180)
+        self.field1_val_input = QLineEdit()
+        self.field1_val_input.setPlaceholderText("実際の文字列 (例: C12345678, 8899)")
         if is_edit:
-            self.alias1_input.setText(edit_data.get("alias1", ""))
+            self.field1_name_input.setText(edit_data.get("field1_name", "追加項目1"))
+            self.field1_val_input.setText(edit_data.get("field1_value") or edit_data.get("alias1", ""))
+        f1_layout.addWidget(self.field1_name_input)
+        f1_layout.addWidget(self.field1_val_input)
 
-        self.alias2_input = QLineEdit()
-        self.alias2_input.setPlaceholderText("例: MFクラウド")
+        f2_layout = QHBoxLayout()
+        self.field2_name_input = QLineEdit()
+        self.field2_name_input.setPlaceholderText("項目タイトル2 (例: 法人コード, 社員ID)")
+        self.field2_name_input.setFixedWidth(180)
+        self.field2_val_input = QLineEdit()
+        self.field2_val_input.setPlaceholderText("実際の文字列 (例: CORP-998, EMP-0012)")
         if is_edit:
-            self.alias2_input.setText(edit_data.get("alias2", ""))
+            self.field2_name_input.setText(edit_data.get("field2_name", "追加項目2"))
+            self.field2_val_input.setText(edit_data.get("field2_value") or edit_data.get("alias2", ""))
+        f2_layout.addWidget(self.field2_name_input)
+        f2_layout.addWidget(self.field2_val_input)
 
         self.notes_input = QTextEdit()
-        self.notes_input.setPlaceholderText("メモ、契約番号、第2パスワードなど")
+        self.notes_input.setPlaceholderText("メモ、製品名別名、補足など")
         self.notes_input.setFixedHeight(45)
         if is_edit:
             self.notes_input.setPlainText(edit_data.get("notes", ""))
@@ -339,8 +354,8 @@ class AccountAddDialog(QDialog):
         if is_edit:
             self.url_input.setText(edit_data.get("url", ""))
 
-        extra_form.addRow("製品名 / 別名1:", self.alias1_input)
-        extra_form.addRow("製品名 / 別名2:", self.alias2_input)
+        extra_form.addRow("🔑 第3の認証項目 (タイトル＆文字列):", f1_layout)
+        extra_form.addRow("🔑 第4の認証項目 (タイトル＆文字列):", f2_layout)
         extra_form.addRow("備考・メモ:", self.notes_input)
         extra_form.addRow("秘密の質問:", self.sec_q_input)
         extra_form.addRow("秘密の答え:", self.sec_a_input)
@@ -403,10 +418,19 @@ class AccountAddDialog(QDialog):
         self.show()
 
     def get_data(self):
+        f1_n = self.field1_name_input.text().strip() or "追加項目1"
+        f1_v = self.field1_val_input.text().strip()
+        f2_n = self.field2_name_input.text().strip() or "追加項目2"
+        f2_v = self.field2_val_input.text().strip()
+
         return {
             "name": self.name_input.text().strip(),
-            "alias1": self.alias1_input.text().strip(),
-            "alias2": self.alias2_input.text().strip(),
+            "alias1": f1_v,
+            "alias2": f2_v,
+            "field1_name": f1_n,
+            "field1_value": f1_v,
+            "field2_name": f2_n,
+            "field2_value": f2_v,
             "username": self.user_input.text().strip(),
             "password": self.pass_input.text().strip(),
             "security_level": self.level_combo.currentData(),

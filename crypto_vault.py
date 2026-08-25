@@ -170,21 +170,37 @@ class CryptoVault:
     def add_account(self, name: str, username: str, password: str, security_level: int = 1,
                     category: str = "一般", url: str = "", notes: str = "",
                     sec_question: str = "", sec_answer: str = "",
-                    alias1: str = "", alias2: str = "", logo_image: str = ""):
+                    alias1: str = "", alias2: str = "", logo_image: str = "",
+                    field1_name: str = "", field1_value: str = "",
+                    field2_name: str = "", field2_value: str = ""):
         import uuid
         acc_id = str(uuid.uuid4())[:8]
 
+        # Use field1_value/field2_value as primary, fallback to alias1/alias2 for compatibility
+        f1_n = field1_name.strip()
+        f1_v = field1_value.strip() or alias1.strip()
+        f2_n = field2_name.strip()
+        f2_v = field2_value.strip() or alias2.strip()
+
         aliases = [name.lower()]
-        if alias1:
-            aliases.append(alias1.lower())
-        if alias2:
-            aliases.append(alias2.lower())
+        if f1_v:
+            aliases.append(f1_v.lower())
+        if f2_v:
+            aliases.append(f2_v.lower())
+        if f1_n:
+            aliases.append(f1_n.lower())
+        if f2_n:
+            aliases.append(f2_n.lower())
 
         acc = {
             "id": acc_id,
             "name": name,
-            "alias1": alias1,
-            "alias2": alias2,
+            "alias1": f1_v,
+            "alias2": f2_v,
+            "field1_name": f1_n or "追加項目1",
+            "field1_value": f1_v,
+            "field2_name": f2_n or "追加項目2",
+            "field2_value": f2_v,
             "username": username,
             "password": password,
             "security_level": security_level,

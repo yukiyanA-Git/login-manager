@@ -134,6 +134,45 @@ class FloatingPopupWindow(QWidget):
         pass_layout.addWidget(btn_copy_pass)
         self.layout.addLayout(pass_layout)
 
+        # ✨【ご要望反映】第3・第4のカスタム追加項目の自動コピー行
+        f1_title = self.account_data.get("field1_name") or "追加項目1"
+        f1_val = self.account_data.get("field1_value") or self.account_data.get("alias1", "")
+        if f1_val:
+            f1_layout = QHBoxLayout()
+            f1_lbl = QLabel(f"{f1_title}:")
+            f1_lbl.setFixedWidth(75)
+            f1_field = QLineEdit(f1_val)
+            f1_field.setReadOnly(True)
+            btn_copy_f1 = QPushButton(f"📋 {f1_title}をコピー")
+            btn_copy_f1.setStyleSheet("background-color: #0891B2; color: white; font-weight: bold;")
+            btn_copy_f1.clicked.connect(lambda f_v=f1_val, f_t=f1_title: self.copy_text(f_v, f"📋 {f_t}をコピーしました！"))
+            f1_layout.addWidget(f1_lbl)
+            f1_layout.addWidget(f1_field)
+            f1_layout.addWidget(btn_copy_f1)
+            self.layout.addLayout(f1_layout)
+
+        f2_title = self.account_data.get("field2_name") or "追加項目2"
+        f2_val = self.account_data.get("field2_value") or self.account_data.get("alias2", "")
+        if f2_val:
+            f2_layout = QHBoxLayout()
+            f2_lbl = QLabel(f"{f2_title}:")
+            f2_lbl.setFixedWidth(75)
+            f2_field = QLineEdit(f2_val)
+            f2_field.setReadOnly(True)
+            btn_copy_f2 = QPushButton(f"📋 {f2_title}をコピー")
+            btn_copy_f2.setStyleSheet("background-color: #4F46E5; color: white; font-weight: bold;")
+            btn_copy_f2.clicked.connect(lambda f_v=f2_val, f_t=f2_title: self.copy_text(f_v, f"📋 {f_t}をコピーしました！"))
+            f2_layout.addWidget(f2_lbl)
+            f2_layout.addWidget(f2_field)
+            f2_layout.addWidget(btn_copy_f2)
+            self.layout.addLayout(f2_layout)
+
+        # Dynamic window height calculation based on extra fields
+        extra_rows_count = (1 if f1_val else 0) + (1 if f2_val else 0)
+        base_h = 230 + (extra_rows_count * 36)
+        self.setFixedSize(360, base_h)
+        self.main_frame.setGeometry(0, 0, 360, base_h)
+
         # Optional Notes & Security Questions Accordion
         has_notes = bool(self.account_data.get("notes") or self.account_data.get("sec_question") or self.account_data.get("sec_answer"))
         if has_notes:
@@ -191,14 +230,21 @@ class FloatingPopupWindow(QWidget):
     def toggle_notes(self):
         self.notes_expanded = not self.notes_expanded
         self.notes_container.setVisible(self.notes_expanded)
+        
+        f1_val = self.account_data.get("field1_value") or self.account_data.get("alias1", "")
+        f2_val = self.account_data.get("field2_value") or self.account_data.get("alias2", "")
+        extra_rows_count = (1 if f1_val else 0) + (1 if f2_val else 0)
+        base_h = 230 + (extra_rows_count * 36)
+
         if self.notes_expanded:
             self.btn_expand_notes.setText("📝 備考・秘密の質問を閉じる (▲)")
-            self.setFixedHeight(340)
-            self.main_frame.setFixedHeight(340)
+            expanded_h = base_h + 110
+            self.setFixedHeight(expanded_h)
+            self.main_frame.setFixedHeight(expanded_h)
         else:
             self.btn_expand_notes.setText("📝 備考・秘密の質問を表示 (▼)")
-            self.setFixedHeight(230)
-            self.main_frame.setFixedHeight(230)
+            self.setFixedHeight(base_h)
+            self.main_frame.setFixedHeight(base_h)
 
     def toggle_password_visibility(self):
         self.password_visible = not self.password_visible
