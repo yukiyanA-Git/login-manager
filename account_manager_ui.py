@@ -510,58 +510,104 @@ class AccountManagerWindow(QMainWindow):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         main_layout.addWidget(self.table)
 
-        # Bottom Unobtrusive Ad Banner
+        # Bottom Luxury Acrylic Ad Banner (アクリル広告枠 - 全公開アプリ相互送客 & 有料プラン案内)
         ad_frame = QFrame()
         ad_frame.setStyleSheet("""
             QFrame {
-                background-color: #1F2937;
-                border: 1px solid #374151;
-                border-radius: 8px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #111827, stop:1 #1F2937);
+                border: 1px solid #D4AF37;
+                border-radius: 10px;
                 padding: 6px 12px;
             }
         """)
         ad_layout = QHBoxLayout(ad_frame)
-        ad_layout.setContentsMargins(6, 4, 6, 4)
+        ad_layout.setContentsMargins(8, 4, 8, 4)
+        ad_layout.setSpacing(8)
 
-        ad_title = QLabel("📢 <b>おすすめ・連携ツール:</b>")
-        ad_title.setStyleSheet("color: #9CA3AF; font-size: 11px;")
+        ad_title = QLabel("✨ <b>RECOMMENDED APPS & SPONSOR:</b>")
+        ad_title.setStyleSheet("color: #E6C875; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
         ad_layout.addWidget(ad_title)
 
-        btn_chronos = QPushButton("⏱️ Chronos - 高機能タイムトラッキング ＆ 業務管理ツール")
+        btn_chronos = QPushButton("⏱️ Chronos (カレンダー&業務)")
         btn_chronos.setStyleSheet("""
             QPushButton {
                 background-color: #4F46E5;
                 color: #FFFFFF;
                 font-weight: bold;
-                font-size: 11px;
-                padding: 4px 10px;
-                border-radius: 4px;
+                font-size: 10px;
+                padding: 4px 8px;
+                border-radius: 5px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
             }
-            QPushButton:hover {
-                background-color: #4338CA;
-            }
+            QPushButton:hover { background-color: #4338CA; border-color: #E6C875; }
         """)
-        btn_chronos.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git")))
+        btn_chronos.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://chronos-app-d149d.web.app")))
 
-        btn_github = QPushButton("🌐 Login Manager 公式GitHub")
-        btn_github.setStyleSheet("""
+        btn_strategy = QPushButton("🎮 Strategy Notebook (ゲーム攻略)")
+        btn_strategy.setStyleSheet("""
             QPushButton {
-                background-color: #374151;
-                color: #F9FAFB;
+                background-color: #0891B2;
+                color: #FFFFFF;
                 font-weight: bold;
-                font-size: 11px;
-                padding: 4px 10px;
-                border-radius: 4px;
+                font-size: 10px;
+                padding: 4px 8px;
+                border-radius: 5px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
             }
-            QPushButton:hover {
-                background-color: #4B5563;
-            }
+            QPushButton:hover { background-color: #0E7490; border-color: #E6C875; }
         """)
-        btn_github.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git/login-manager")))
+        btn_strategy.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://strategy-notebook-app.web.app")))
+
+        btn_microchat = QPushButton("💬 micro-chat (デスクチャット)")
+        btn_microchat.setStyleSheet("""
+            QPushButton {
+                background-color: #2563EB;
+                color: #FFFFFF;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 4px 8px;
+                border-radius: 5px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            QPushButton:hover { background-color: #1D4ED8; border-color: #E6C875; }
+        """)
+        btn_microchat.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://micro-office-chat-app.web.app")))
+
+        btn_aura = QPushButton("🏛️ AURAgallery (デジタル美術館)")
+        btn_aura.setStyleSheet("""
+            QPushButton {
+                background-color: #7C3AED;
+                color: #FFFFFF;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 4px 8px;
+                border-radius: 5px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            QPushButton:hover { background-color: #6D28D9; border-color: #E6C875; }
+        """)
+        btn_aura.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://aura-gallery-app.web.app")))
 
         ad_layout.addWidget(btn_chronos)
-        ad_layout.addWidget(btn_github)
+        ad_layout.addWidget(btn_strategy)
+        ad_layout.addWidget(btn_microchat)
+        ad_layout.addWidget(btn_aura)
         ad_layout.addStretch()
+
+        btn_ad_free_info = QPushButton("💎 月額100円サブスク(無広告)")
+        btn_ad_free_info.setStyleSheet("""
+            QPushButton {
+                background-color: #D4AF37;
+                color: #000000;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 4px 8px;
+                border-radius: 5px;
+            }
+            QPushButton:hover { background-color: #FFDF73; }
+        """)
+        btn_ad_free_info.clicked.connect(lambda: QMessageBox.information(self, "月額100円サブスクモデル", "【LoginManager 有料プランのご案内】\n\n月額100円サブスクをご利用いただくことで、全ての自社・スポンサー広告枠が完全に非表示となり、継続保守・セキュリティ更新を直接サポートしていただけます！"))
+        ad_layout.addWidget(btn_ad_free_info)
 
         main_layout.addWidget(ad_frame)
 
