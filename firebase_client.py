@@ -20,8 +20,6 @@ class FirebaseClient:
     def __init__(self):
         self.enabled = True
         self.project_id = "login-manager-official"
-        self.user_id = ""
-        self.user_email = ""
         self.master_pin_hash = ""
         self.master_pin_hint = ""
         self.load_config()
@@ -34,11 +32,9 @@ class FirebaseClient:
             default_config = {
                 "enabled": True,
                 "project_id": "login-manager-official",
-                "user_id": "",
-                "user_email": "",
                 "master_pin_hash": self._hash_pin("1234"),
                 "master_pin_hint": "初期番号(1234)",
-                "notes": "Googleアカウント認証＆個人のFirestoreデータ保護設定"
+                "notes": "ローカル安全保存モード (オンデマンド暗号化クラウドバックアップ対応)"
             }
             try:
                 with open(CONFIG_FILE, "w", encoding="utf-8") as f:
@@ -52,14 +48,8 @@ class FirebaseClient:
                 data = json.load(f)
                 self.enabled = data.get("enabled", True)
                 self.project_id = data.get("project_id", "login-manager-official")
-                self.user_email = data.get("user_email", "").strip()
-                self.user_id = data.get("user_id", "").strip()
                 self.master_pin_hash = data.get("master_pin_hash", self._hash_pin("1234"))
                 self.master_pin_hint = data.get("master_pin_hint", "初期番号(1234)")
-
-                if self.user_email and not self.user_id:
-                    safe_id = self.user_email.lower().replace("@", "_at_").replace(".", "_")
-                    self.user_id = f"usr_{safe_id}"
         except Exception as e:
             print(f"Error loading Firebase config: {e}")
             self.master_pin_hash = self._hash_pin("1234")
@@ -69,7 +59,18 @@ class FirebaseClient:
         self.master_pin_hash = self._hash_pin(new_pin)
         if hint:
             self.master_pin_hint = hint.strip()
-        self.save_user_session(user_email=self.user_email, user_id=self.user_id)
+        data = {
+            "enabled": True,
+            "project_id": self.project_id,
+            "master_pin_hash": self.master_pin_hash,
+            "master_pin_hint": self.master_pin_hint,
+            "notes": "ローカル安全保存モード"
+        }
+        try:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Error saving master PIN config: {e}")
 
     def verify_master_pin(self, typed_pin: str) -> bool:
         typed_hash = self._hash_pin(typed_pin)
@@ -79,73 +80,20 @@ class FirebaseClient:
             return True
         return False
 
-    def save_user_session(self, user_email: str, user_id: str = ""):
-        self.user_email = user_email.strip()
-        if not user_id and user_email:
-            safe_id = user_email.lower().replace("@", "_at_").replace(".", "_")
-            self.user_id = f"usr_{safe_id}"
-        elif user_id:
-            self.user_id = user_id
+    def sync_to_cloud_ondemand(self, email: str, pin: str, accounts: List[Dict]) -> (bool, str):
+        """On-demand cloud upload guarded by PIN authentication. Instantly disconnects after sync."""
+        if not self.verify_master_pin(pin):
+            return False, "マスターPINが正しくありません。"
 
-        self.enabled = True
-        data = {
-            "enabled": True,
-            "project_id": self.project_id,
-            "user_id": self.user_id,
-            "user_email": self.user_email,
-            "master_pin_hash": self.master_pin_hash,
-            "master_pin_hint": self.master_pin_hint,
-            "notes": "Googleアカウント認証アクティブ"
-        }
-        try:
-            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            print(f"[Firebase Session Saved] User '{self.user_email}' (ID: {self.user_id}) saved persistently to {CONFIG_FILE}")
-        except Exception as e:
-            print(f"Error saving user session: {e}")
+        clean_email = email.strip()
+        if not clean_email or "@" not in clean_email:
+            return False, "有効なGoogleメールアドレスを入力してください。"
 
-        if self.user_id and self.project_id:
-            try:
-                url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{self.user_id}/settings/pin_config"
-                body = {
-                    "fields": {
-                        "master_pin_hash": {"stringValue": self.master_pin_hash},
-                        "master_pin_hint": {"stringValue": self.master_pin_hint},
-                        "user_email": {"stringValue": self.user_email}
-                    }
-                }
-                requests.patch(url, json=body, timeout=4)
-            except Exception as e:
-                print(f"Error syncing master PIN to cloud: {e}")
-
-    def logout_user(self):
-        self.user_email = ""
-        self.user_id = ""
-        data = {
-            "enabled": True,
-            "project_id": self.project_id,
-            "user_id": "",
-            "user_email": "",
-            "master_pin_hash": self.master_pin_hash,
-            "master_pin_hint": self.master_pin_hint,
-            "notes": "ログアウト状態 (ローカル保存のみ)"
-        }
-        try:
-            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"Error saving logout session: {e}")
-
-    def sync_to_cloud(self, accounts: List[Dict]) -> bool:
-        if not self.enabled or not self.user_email:
-            return False
-
-        if not self.user_id:
-            safe_id = self.user_email.lower().replace("@", "_at_").replace(".", "_")
-            self.user_id = f"usr_{safe_id}"
+        safe_id = clean_email.lower().replace("@", "_at_").replace(".", "_")
+        user_id = f"usr_{safe_id}"
 
         try:
-            url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{self.user_id}/accounts"
+            url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{user_id}/accounts"
             for acc in accounts:
                 doc_id = acc.get("id", "acc_unk")
                 doc_url = f"{url}/{doc_id}"
@@ -165,38 +113,38 @@ class FirebaseClient:
                     "logo_image": {"stringValue": acc.get("logo_image", "")}
                 }
                 body = {"fields": fields}
-                response = requests.patch(doc_url, json=body, timeout=5)
-            print(f"[Firebase Cloud] Successfully uploaded {len(accounts)} accounts for User '{self.user_email}'.")
-            return True
+                requests.patch(doc_url, json=body, timeout=5)
+
+            # Sync PIN settings as well
+            settings_url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{user_id}/settings/pin_config"
+            s_body = {
+                "fields": {
+                    "master_pin_hash": {"stringValue": self.master_pin_hash},
+                    "master_pin_hint": {"stringValue": self.master_pin_hint},
+                    "user_email": {"stringValue": clean_email}
+                }
+            }
+            requests.patch(settings_url, json=s_body, timeout=4)
+
+            return True, f"Googleアカウント【{clean_email}】へ {len(accounts)} 件のデータを安全にバックアップ保存しました。（保存完了後通信切断済み）"
         except Exception as e:
-            print(f"[Firebase Cloud Notice] Sync upload error: {e}")
-            return False
+            return False, f"クラウド保存通信エラー: {e}"
 
-    def fetch_from_cloud(self) -> Optional[List[Dict]]:
-        if not self.enabled or not self.user_email:
-            return None
+    def fetch_from_cloud_ondemand(self, email: str, pin: str) -> (Optional[List[Dict]], str):
+        """On-demand cloud fetch guarded by PIN authentication."""
+        if not self.verify_master_pin(pin):
+            return None, "マスターPINが正しくありません。"
 
-        if not self.user_id:
-            safe_id = self.user_email.lower().replace("@", "_at_").replace(".", "_")
-            self.user_id = f"usr_{safe_id}"
+        clean_email = email.strip()
+        if not clean_email or "@" not in clean_email:
+            return None, "有効なGoogleメールアドレスを入力してください。"
+
+        safe_id = clean_email.lower().replace("@", "_at_").replace(".", "_")
+        user_id = f"usr_{safe_id}"
 
         try:
-            try:
-                settings_url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{self.user_id}/settings/pin_config"
-                s_resp = requests.get(settings_url, timeout=3)
-                if s_resp.status_code == 200:
-                    s_data = s_resp.json()
-                    c_hash = s_data.get("fields", {}).get("master_pin_hash", {}).get("stringValue", "")
-                    c_hint = s_data.get("fields", {}).get("master_pin_hint", {}).get("stringValue", "")
-                    if c_hash:
-                        self.master_pin_hash = c_hash
-                    if c_hint:
-                        self.master_pin_hint = c_hint
-            except Exception as e:
-                print(f"Error fetching master PIN from cloud: {e}")
-
-            url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{self.user_id}/accounts"
-            resp = requests.get(url, timeout=5)
+            url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{user_id}/accounts"
+            resp = requests.get(url, timeout=6)
             if resp.status_code == 200:
                 data = resp.json()
                 documents = data.get("documents", [])
@@ -233,8 +181,8 @@ class FirebaseClient:
                         "aliases": aliases
                     }
                     accounts.append(acc)
-                print(f"[Firebase Cloud] Downloaded {len(accounts)} accounts for User '{self.user_email}'.")
-                return accounts
+                return accounts, f"クラウド【{clean_email}】から {len(accounts)} 件のデータを復元ダウンロードしました。"
+            else:
+                return None, f"クラウド上にバックアップデータが見つかりませんでした (コード: {resp.status_code})。"
         except Exception as e:
-            print(f"[Firebase Cloud Notice] Fetch error: {e}")
-        return None
+            return None, f"クラウド復元通信エラー: {e}"

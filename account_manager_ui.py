@@ -4,12 +4,145 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QMessageBox,
     QDialog, QFormLayout, QLineEdit, QComboBox, QGroupBox, QTextEdit, QApplication,
-    QFrame
+    QFrame, QTabWidget, QTextBrowser
 )
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QColor, QFont, QClipboard, QDesktopServices
 
 from autostart_helper import is_autostart_enabled, set_autostart
+
+class DataMigrationHelpDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("💡 PCのお引っ越し ＆ バックアップ保存 完全ガイド")
+        self.resize(600, 480)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+
+        title_label = QLabel("<b>💡 パスワードデータのバックアップ ＆ 新PCへの移行手順</b>")
+        title_label.setStyleSheet("font-size: 14px; color: #1F2937;")
+        layout.addWidget(title_label)
+
+        browser = QTextBrowser()
+        browser.setOpenExternalLinks(True)
+        html_content = """
+        <style>
+            body { font-family: sans-serif; font-size: 12px; color: #374151; line-height: 1.6; }
+            h3 { color: #0078D4; margin-top: 14px; margin-bottom: 6px; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; }
+            .box { background-color: #F3F4F6; border-left: 4px solid #0078D4; padding: 10px; margin: 8px 0; border-radius: 4px; }
+            .tip { background-color: #ECFDF5; border-left: 4px solid #10B981; padding: 10px; margin: 8px 0; border-radius: 4px; }
+            ul { margin-top: 4px; padding-left: 20px; }
+            li { margin-bottom: 4px; }
+            b { color: #111827; }
+        </style>
+
+        <div class="box">
+            <b>🔑 本アプリの基本動作（ローカル安全設計）</b><br>
+            本アプリはお客様のセキュリティとプライバシーを守るため、<b>通常時は100%完全オフライン（PC内部のAES-256暗号化ファイル）</b>で安全・高速に動作します。
+        </div>
+
+        <h3>📦 方法1. CSVファイルを使ったお引っ越し（手軽・おすすめ）</h3>
+        <p>USBメモリやファイル共有を使って、最も簡単かつ確実にデータを移行できます。</p>
+        <ul>
+            <li><b>【旧PCでの操作】</b>: 管理画面の <b>[📤 登録データをCSV出力(バックアップ)]</b> をクリックし、CSVファイルをUSBメモリ等に保存します。</li>
+            <li><b>【新PCでの操作】</b>: 新しいPCにLoginManagerをインストール後、管理画面の <b>[📥 CSV一括取り込み]</b> をクリックして先ほどのファイルを選択します。一秒で全データが復元されます！</li>
+        </ul>
+
+        <h3>☁️ 方法2. オンデマンド・クラウドバックアップを使ったお引っ越し</h3>
+        <p>USBメモリが手元にない場合や、定期的なオンラインバックアップとして活用できます。</p>
+        <ul>
+            <li><b>【旧PCでの操作】</b>: 管理画面の <b>[☁️ クラウドへ保存]</b> を押し、マスターPINとGoogleメールアドレスを入力して保存します。<b>※保存完了後通信は即座に完全切断されます。</b></li>
+            <li><b>【新PCでの操作】</b>: 新PCの管理画面で <b>[☁️ クラウドから復元]</b> を押し、同じGoogleアドレスとマスターPINを入力するだけで復元完了です。</li>
+        </ul>
+
+        <div class="tip">
+            <b>🛡️ 定期バックアップのススメ</b><br>
+            万が一のパソコンの故障や紛失に備え、月に1回程度<b>「CSV出力」</b>または<b>「クラウドへ保存」</b>を行っておくことを推奨いたします。
+        </div>
+        """
+        browser.setHtml(html_content)
+        layout.addWidget(browser)
+
+        btn_close = QPushButton("閉じる")
+        btn_close.setStyleSheet("background-color: #0078D4; color: white; font-weight: bold; padding: 6px 20px;")
+        btn_close.clicked.connect(self.accept)
+
+        btn_box = QHBoxLayout()
+        btn_box.addStretch()
+        btn_box.addWidget(btn_close)
+        layout.addLayout(btn_box)
+
+
+class OnDemandCloudDialog(QDialog):
+    def __init__(self, firebase_client, mode="backup", parent=None):
+        super().__init__(parent)
+        self.firebase = firebase_client
+        self.mode = mode  # "backup" or "restore"
+
+        is_backup = (mode == "backup")
+        self.setWindowTitle("☁️ オンデマンド・クラウド保存 (暗号化バックアップ)" if is_backup else "☁️ クラウドからデータを復元")
+        self.setFixedWidth(440)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+
+        info_text = (
+            "<b>安全な一時クラウドバックアップ保存</b><br>"
+            "暗証確認後、あなた専用のGoogleクラウド保存領域へデータを安全送信します。<br>"
+            "<b>※保存完了後、通信は即座に完全自動切断されます。</b>"
+        ) if is_backup else (
+            "<b>クラウドからの安全データ復元</b><br>"
+            "暗証確認後、以前保存したバックアップデータをGoogleクラウドからダウンロード復元します。<br>"
+            "<b>※復元完了後、通信は即座に完全自動切断されます。</b>"
+        )
+
+        info_label = QLabel(info_text)
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("color: #374151; font-size: 11px;")
+        layout.addWidget(info_label)
+
+        form = QFormLayout()
+
+        self.email_input = QLineEdit()
+        self.email_input.setPlaceholderText("例: your_name@gmail.com")
+
+        self.pin_input = QLineEdit()
+        self.pin_input.setEchoMode(QLineEdit.Password)
+        self.pin_input.setPlaceholderText("マスターPIN (4〜6桁 / 初期: 1234)")
+
+        form.addRow("Googleメールアドレス:", self.email_input)
+        form.addRow("マスターPIN (暗証番号):", self.pin_input)
+        layout.addLayout(form)
+
+        btn_box = QHBoxLayout()
+        btn_cancel = QPushButton("キャンセル")
+        btn_cancel.clicked.connect(self.reject)
+
+        btn_action = QPushButton("☁️ 今すぐクラウドへ保存" if is_backup else "☁️ クラウドからデータを復元")
+        btn_action.setStyleSheet("background-color: #0078D4; color: white; font-weight: bold; padding: 6px 14px;")
+        btn_action.clicked.connect(self.do_action)
+
+        btn_box.addWidget(btn_cancel)
+        btn_box.addWidget(btn_action)
+        layout.addLayout(btn_box)
+
+    def do_action(self):
+        email = self.email_input.text().strip()
+        pin = self.pin_input.text().strip()
+
+        if not email or "@" not in email:
+            QMessageBox.warning(self, "入力エラー", "有効なGoogleメールアドレスを入力してください。")
+            return
+
+        if not pin:
+            QMessageBox.warning(self, "入力エラー", "マスターPIN（暗証番号）を入力してください。")
+            return
+
+        self.user_email = email
+        self.user_pin = pin
+        self.accept()
+
 
 class MasterPinSettingDialog(QDialog):
     def __init__(self, firebase_client, parent=None):
@@ -23,8 +156,7 @@ class MasterPinSettingDialog(QDialog):
 
         info_label = QLabel(
             "<b>予備マスターPIN（高セキュリティ解除用）の変更</b><br>"
-            "Windows Helloが使えない環境や会社PCで使う暗証番号（4〜6桁）と、思い出せるヒントを設定します。<br>"
-            "※マスターPINおよびヒントはGoogleクラウド経由であなたの他PCへも自動同期されます。"
+            "Windows Helloが使えない環境や会社PCで使う暗証番号（4〜6桁）と、思い出せるヒントを設定します。"
         )
         info_label.setWordWrap(True)
         info_label.setStyleSheet("color: #374151; font-size: 11px;")
@@ -84,63 +216,7 @@ class MasterPinSettingDialog(QDialog):
             return
 
         self.firebase.save_master_pin(new_typed, hint=hint_typed)
-        QMessageBox.information(self, "変更完了", "予備マスターPINおよびヒントメモを正常に変更・同期保存しました。")
-        self.accept()
-
-
-class GoogleAuthDialog(QDialog):
-    def __init__(self, firebase_client, parent=None):
-        super().__init__(parent)
-        self.firebase = firebase_client
-        self.setWindowTitle("🔴 Googleアカウントサインイン (マルチデバイス同期)")
-        self.setFixedWidth(440)
-
-        layout = QVBoxLayout(self)
-        layout.setSpacing(12)
-
-        info_label = QLabel(
-            "<b>Googleアカウントによる個別クラウド連携</b><br>"
-            "Googleアカウントでサインインすると、あなたのデータ専用の暗号化エリアにクラウド保存され、"
-            "他のデバイス（別PC等）でも同じGoogleアカウントで即座に同期・復元されます。<br>"
-            "※第三者や他のユーザーにデータが見られることはありません。"
-        )
-        info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: #374151; font-size: 11px;")
-        layout.addWidget(info_label)
-
-        form = QFormLayout()
-        self.email_input = QLineEdit()
-        self.email_input.setText(self.firebase.user_email)
-        self.email_input.setPlaceholderText("例: your_name@gmail.com")
-        form.addRow("Googleメールアドレス:", self.email_input)
-
-        layout.addLayout(form)
-
-        btn_box = QHBoxLayout()
-        btn_logout = QPushButton("🚪 ログアウト (同期解除)")
-        btn_logout.setStyleSheet("background-color: #EF4444; color: white;")
-        btn_logout.clicked.connect(self.do_logout)
-
-        btn_save = QPushButton("🔴 Googleアカウントでサインイン")
-        btn_save.setStyleSheet("background-color: #DC2626; color: white; font-weight: bold; padding: 6px 12px;")
-        btn_save.clicked.connect(self.do_signin)
-
-        btn_box.addWidget(btn_logout)
-        btn_box.addWidget(btn_save)
-        layout.addLayout(btn_box)
-
-    def do_signin(self):
-        email = self.email_input.text().strip()
-        if email and "@" in email:
-            self.firebase.save_user_session(user_email=email)
-            QMessageBox.information(self, "サインイン完了", f"Googleアカウント【{email}】としてクラウド同期をスタートしました。")
-            self.accept()
-        else:
-            QMessageBox.warning(self, "入力エラー", "有効なGoogleメールアドレス（例: user@gmail.com）を入力してください。")
-
-    def do_logout(self):
-        self.firebase.logout_user()
-        QMessageBox.information(self, "ログアウト", "Googleアカウントをログアウトし、ローカル保存モードに変更しました。")
+        QMessageBox.information(self, "変更完了", "マスターPINおよびヒントメモを正常に変更保存しました。")
         self.accept()
 
 
@@ -350,7 +426,7 @@ class AccountManagerWindow(QMainWindow):
         self.overlay = overlay_instance
 
         self.setWindowTitle("ログインマネージャー - アカウント管理 & 設定")
-        self.resize(950, 600)
+        self.resize(960, 600)
         self.init_ui()
 
     def closeEvent(self, event):
@@ -362,21 +438,24 @@ class AccountManagerWindow(QMainWindow):
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
 
-        header_box = QGroupBox("クラウド同期 ＆ アプリ動作設定")
+        header_box = QGroupBox("セキュリティ ＆ バックアップ動作設定")
         header_layout = QHBoxLayout(header_box)
 
-        user_email = self.vault.firebase.user_email
-        if user_email:
-            status_text = f"🔴 Google連動中 ({user_email})"
-        else:
-            status_text = "🟡 未サインイン (ローカル保存)"
-
-        self.status_label = QLabel(status_text)
+        self.status_label = QLabel("🟢 ローカル安全動作モード (完全オフライン保存中)")
         self.status_label.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        self.status_label.setStyleSheet("color: #059669;")
 
-        btn_google = QPushButton("🔴 Googleサインイン")
-        btn_google.setStyleSheet("background-color: #DC2626; color: white; font-weight: bold; padding: 4px 10px;")
-        btn_google.clicked.connect(self.open_google_dialog)
+        btn_cloud_save = QPushButton("☁️ クラウドへ保存")
+        btn_cloud_save.setStyleSheet("background-color: #0078D4; color: white; font-weight: bold; padding: 4px 10px;")
+        btn_cloud_save.clicked.connect(self.on_cloud_backup_clicked)
+
+        btn_cloud_restore = QPushButton("☁️ クラウドから復元")
+        btn_cloud_restore.setStyleSheet("background-color: #0284C7; color: white; font-weight: bold; padding: 4px 10px;")
+        btn_cloud_restore.clicked.connect(self.on_cloud_restore_clicked)
+
+        btn_help_guide = QPushButton("💡 PCお引っ越し・移行ガイド")
+        btn_help_guide.setStyleSheet("background-color: #4F46E5; color: white; font-weight: bold; padding: 4px 10px;")
+        btn_help_guide.clicked.connect(self.open_migration_guide)
 
         btn_pin = QPushButton("🔑 マスターPIN変更")
         btn_pin.setStyleSheet("background-color: #374151; color: white; font-weight: bold; padding: 4px 10px;")
@@ -386,16 +465,13 @@ class AccountManagerWindow(QMainWindow):
         self.update_autostart_button_style()
         self.btn_autostart.clicked.connect(self.toggle_autostart)
 
-        btn_sync_now = QPushButton("🔄 今すぐ同期")
-        btn_sync_now.setStyleSheet("padding: 4px 10px;")
-        btn_sync_now.clicked.connect(self.sync_now)
-
         header_layout.addWidget(self.status_label)
         header_layout.addStretch()
-        header_layout.addWidget(btn_google)
+        header_layout.addWidget(btn_cloud_save)
+        header_layout.addWidget(btn_cloud_restore)
+        header_layout.addWidget(btn_help_guide)
         header_layout.addWidget(btn_pin)
         header_layout.addWidget(self.btn_autostart)
-        header_layout.addWidget(btn_sync_now)
         main_layout.addWidget(header_box)
 
         action_layout = QHBoxLayout()
@@ -434,67 +510,93 @@ class AccountManagerWindow(QMainWindow):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         main_layout.addWidget(self.table)
 
-        # Acrylic Glassmorphism Ad Banner Component (Replicated from Chronos)
+        # Bottom Unobtrusive Ad Banner
         ad_frame = QFrame()
         ad_frame.setStyleSheet("""
             QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(31, 41, 55, 0.95), stop:1 rgba(17, 24, 39, 0.95));
-                border: 1px solid rgba(212, 175, 55, 0.4);
-                border-radius: 12px;
-                padding: 6px 14px;
-            }
-            QFrame:hover {
-                border: 1px solid rgba(212, 175, 55, 0.8);
+                background-color: #1F2937;
+                border: 1px solid #374151;
+                border-radius: 8px;
+                padding: 6px 12px;
             }
         """)
-        ad_layout = QVBoxLayout(ad_frame)
-        ad_layout.setContentsMargins(8, 6, 8, 6)
-        ad_layout.setSpacing(4)
+        ad_layout = QHBoxLayout(ad_frame)
+        ad_layout.setContentsMargins(6, 4, 6, 4)
 
-        # Top Content: Sparkle Gold Icon + PREMIUM PARTNER / 広告掲載スペース (Ad Placement Space)
-        top_ad_layout = QHBoxLayout()
-        top_ad_layout.setContentsMargins(0, 0, 0, 0)
+        ad_title = QLabel("📢 <b>おすすめ・連携ツール:</b>")
+        ad_title.setStyleSheet("color: #9CA3AF; font-size: 11px;")
+        ad_layout.addWidget(ad_title)
 
-        sparkle_label = QLabel("✨  <b>PREMIUM PARTNER / 広告掲載スペース</b>")
-        sparkle_label.setStyleSheet("color: #E5E7EB; font-size: 11px; letter-spacing: 0.5px;")
-        top_ad_layout.addWidget(sparkle_label)
-        top_ad_layout.addStretch()
-
-        # Link button (Google AdSense tag / Custom URL Banner insertion space)
-        btn_ad_link = QPushButton("🔗 Google AdSenseタグ / 画像バナー / 公式サイトリンクを掲載可能")
-        btn_ad_link.setStyleSheet("""
+        btn_chronos = QPushButton("⏱️ Chronos - 高機能タイムトラッキング ＆ 業務管理ツール")
+        btn_chronos.setStyleSheet("""
             QPushButton {
-                background-color: transparent;
-                color: #60A5FA;
+                background-color: #4F46E5;
+                color: #FFFFFF;
                 font-weight: bold;
                 font-size: 11px;
-                border: none;
-                text-decoration: underline;
+                padding: 4px 10px;
+                border-radius: 4px;
             }
             QPushButton:hover {
-                color: #93C5FD;
+                background-color: #4338CA;
             }
         """)
-        btn_ad_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git/login-manager")))
-        top_ad_layout.addWidget(btn_ad_link)
+        btn_chronos.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git")))
 
-        ad_layout.addLayout(top_ad_layout)
+        btn_github = QPushButton("🌐 Login Manager 公式GitHub")
+        btn_github.setStyleSheet("""
+            QPushButton {
+                background-color: #374151;
+                color: #F9FAFB;
+                font-weight: bold;
+                font-size: 11px;
+                padding: 4px 10px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #4B5563;
+            }
+        """)
+        btn_github.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git/login-manager")))
 
-        # Dashed Separator Line
-        sep_line = QFrame()
-        sep_line.setFrameShape(QFrame.HLine)
-        sep_line.setStyleSheet("border-top: 1px dashed rgba(252, 211, 77, 0.3); max-height: 1px;")
-        ad_layout.addWidget(sep_line)
-
-        # Bottom Footer Label: S P O N S O R E D (Gold Spacing)
-        sponsored_label = QLabel("S P O N S O R E D")
-        sponsored_label.setAlignment(Qt.AlignCenter)
-        sponsored_label.setStyleSheet("color: rgba(252, 211, 77, 0.85); font-size: 10px; font-weight: bold; letter-spacing: 3px;")
-        ad_layout.addWidget(sponsored_label)
+        ad_layout.addWidget(btn_chronos)
+        ad_layout.addWidget(btn_github)
+        ad_layout.addStretch()
 
         main_layout.addWidget(ad_frame)
 
         self.refresh_table()
+
+    def open_migration_guide(self):
+        dialog = DataMigrationHelpDialog(self)
+        dialog.exec()
+
+    def on_cloud_backup_clicked(self):
+        dialog = OnDemandCloudDialog(self.vault.firebase, mode="backup", parent=self)
+        if dialog.exec() == QDialog.Accepted:
+            success, msg = self.vault.firebase.sync_to_cloud_ondemand(
+                email=dialog.user_email,
+                pin=dialog.user_pin,
+                accounts=self.vault.accounts
+            )
+            if success:
+                QMessageBox.information(self, "クラウド保存完了", msg)
+            else:
+                QMessageBox.warning(self, "クラウド保存エラー", msg)
+
+    def on_cloud_restore_clicked(self):
+        dialog = OnDemandCloudDialog(self.vault.firebase, mode="restore", parent=self)
+        if dialog.exec() == QDialog.Accepted:
+            cloud_accs, msg = self.vault.firebase.fetch_from_cloud_ondemand(
+                email=dialog.user_email,
+                pin=dialog.user_pin
+            )
+            if cloud_accs is not None:
+                self.vault.merge_accounts(cloud_accs)
+                self.refresh_table()
+                QMessageBox.information(self, "クラウド復元完了", msg)
+            else:
+                QMessageBox.warning(self, "クラウド復元エラー", msg)
 
     def update_autostart_button_style(self):
         enabled = is_autostart_enabled()
@@ -547,27 +649,6 @@ class AccountManagerWindow(QMainWindow):
         if file_path:
             count = self.vault.export_accounts_to_csv(file_path)
             QMessageBox.information(self, "バックアップ完了", f"現在登録されている {count} 件のデータをCSV出力しました:\n\n{file_path}")
-
-    def open_google_dialog(self):
-        dialog = GoogleAuthDialog(self.vault.firebase, self)
-        if dialog.exec() == QDialog.Accepted:
-            user_email = self.vault.firebase.user_email
-            if user_email:
-                status_text = f"🔴 Google連動中 ({user_email})"
-            else:
-                status_text = "🟡 未サインイン (ローカル保存)"
-            self.status_label.setText(status_text)
-
-            cloud_accs = self.vault.firebase.fetch_from_cloud()
-            if cloud_accs:
-                self.vault.accounts = cloud_accs
-                self.vault.save_local_file()
-
-            self.refresh_table()
-
-    def sync_now(self):
-        self.vault.save_vault()
-        QMessageBox.information(self, "同期完了", "データを保存およびクラウド同期しました。")
 
     def refresh_table(self):
         self.table.setRowCount(0)
