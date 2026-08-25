@@ -46,14 +46,14 @@ class QuickTrayMenu(QMenu):
         self.addAction(title_action)
         self.addSeparator()
 
-        user_email = self.manager_win.vault.firebase.user_email
+        user_email = getattr(self.manager_win.vault.firebase, 'user_email', '')
         if user_email:
             google_text = f"🔴  Google連動中: {user_email}"
         else:
-            google_text = "🔴  Googleアカウントでサインイン"
+            google_text = "🟢  ローカル安全保存モード (オフライン動作中)"
 
         action_google = QAction(google_text, self)
-        action_google.triggered.connect(self.trigger_google_auth)
+        action_google.setEnabled(False)
         self.addAction(action_google)
 
         self.addSeparator()
@@ -136,10 +136,6 @@ class QuickTrayMenu(QMenu):
         self.overlay.hide()
         # Show popup window staying on top so it doesn't get buried!
         self.overlay.handle_account_found(acc)
-
-    def trigger_google_auth(self):
-        self.overlay.hide()
-        self.manager_win.open_google_dialog()
 
     def trigger_register(self):
         clip_text = QApplication.clipboard().text().strip()

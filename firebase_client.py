@@ -20,6 +20,8 @@ class FirebaseClient:
     def __init__(self):
         self.enabled = True
         self.project_id = "login-manager-official"
+        self.user_email = ""
+        self.user_id = ""
         self.master_pin_hash = ""
         self.master_pin_hint = ""
         self.load_config()
@@ -48,6 +50,8 @@ class FirebaseClient:
                 data = json.load(f)
                 self.enabled = data.get("enabled", True)
                 self.project_id = data.get("project_id", "login-manager-official")
+                self.user_email = data.get("user_email", "").strip()
+                self.user_id = data.get("user_id", "").strip()
                 self.master_pin_hash = data.get("master_pin_hash", self._hash_pin("1234"))
                 self.master_pin_hint = data.get("master_pin_hint", "初期番号(1234)")
         except Exception as e:
@@ -64,6 +68,8 @@ class FirebaseClient:
             "project_id": self.project_id,
             "master_pin_hash": self.master_pin_hash,
             "master_pin_hint": self.master_pin_hint,
+            "user_email": self.user_email,
+            "user_id": self.user_id,
             "notes": "ローカル安全保存モード"
         }
         try:
