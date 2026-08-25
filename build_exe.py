@@ -14,13 +14,13 @@ def build_standalone_exe():
     except Exception:
         pass
 
-    print(f"Building Standalone LoginManager.exe from: {main_py}")
+    print(f"Building Single-File Independent LoginManager.exe from: {main_py}")
 
     cmd = [
         sys.executable,
         "-m", "PyInstaller",
         "--noconfirm",
-        "--onedir",
+        "--onefile",
         "--windowed",
         "--name=LoginManager",
         f"--distpath={dist_dir}",
@@ -36,9 +36,8 @@ def build_standalone_exe():
     try:
         res = subprocess.run(cmd, cwd=app_dir, capture_output=True, text=True)
         if res.returncode == 0:
-            exe_path = os.path.join(dist_dir, "LoginManager", "LoginManager.exe")
-            print(f"\n[BUILD SUCCESS] LoginManager.exe successfully created at:\n{exe_path}\n")
-            print("This folder can be zipped and distributed to any Windows PC for installation!")
+            exe_path = os.path.join(dist_dir, "LoginManager.exe")
+            print(f"\n[BUILD SUCCESS] Single-File Independent LoginManager.exe created at:\n{exe_path}\n")
             return exe_path
         else:
             print(f"[BUILD ERROR] PyInstaller failed:\n{res.stderr}")
