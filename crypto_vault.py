@@ -46,6 +46,10 @@ class CryptoVault:
                 "name": "楽天市場",
                 "alias1": "楽天Ichiba",
                 "alias2": "",
+                "field1_name": "会員番号",
+                "field1_value": "RK-998877",
+                "field2_name": "",
+                "field2_value": "",
                 "username": "rakuten_user@example.com",
                 "password": "RakutenPass2026!",
                 "security_level": 1,
@@ -54,7 +58,7 @@ class CryptoVault:
                 "sec_question": "",
                 "sec_answer": "",
                 "url": "https://www.rakuten.co.jp",
-                "aliases": ["楽天市場", "楽天ichiba"],
+                "aliases": ["楽天市場", "楽天ichiba", "会員番号", "rk-998877"],
                 "logo_image": ""
             },
             {
@@ -62,15 +66,19 @@ class CryptoVault:
                 "name": "SBI証券",
                 "alias1": "SBIネット証券",
                 "alias2": "",
+                "field1_name": "取引暗号コード",
+                "field1_value": "1234",
+                "field2_name": "口座番号",
+                "field2_value": "889900",
                 "username": "sbi_account_8899",
                 "password": "SBIStrictSecuredPass#999",
                 "security_level": 3,
                 "category": "金融・資産",
-                "notes": "取引暗号コード: 1234",
+                "notes": "セキュリティレベル高設定",
                 "sec_question": "母親の旧姓",
                 "sec_answer": "田中",
                 "url": "https://www.sbisec.co.jp",
-                "aliases": ["sbi証券", "sbiネット証券"],
+                "aliases": ["sbi証券", "sbiネット証券", "1234", "889900"],
                 "logo_image": ""
             },
             {
@@ -78,6 +86,10 @@ class CryptoVault:
                 "name": "Sansan",
                 "alias1": "Eight",
                 "alias2": "Sansan名刺",
+                "field1_name": "名刺ID",
+                "field1_value": "CARD-88",
+                "field2_name": "",
+                "field2_value": "",
                 "username": "user_sansan@example.com",
                 "password": "SansanPassword#2026",
                 "security_level": 1,
@@ -86,7 +98,7 @@ class CryptoVault:
                 "sec_question": "",
                 "sec_answer": "",
                 "url": "https://8card.net",
-                "aliases": ["sansan", "eight", "sansan名刺"],
+                "aliases": ["sansan", "eight", "sansan名刺", "card-88"],
                 "logo_image": ""
             },
             {
@@ -94,6 +106,10 @@ class CryptoVault:
                 "name": "マネーフォワード",
                 "alias1": "MFクラウド",
                 "alias2": "マネーフォワードME",
+                "field1_name": "契約番号",
+                "field1_value": "MF-771122",
+                "field2_name": "",
+                "field2_value": "",
                 "username": "finance_user@example.com",
                 "password": "MoneyForwardStrictPass$99",
                 "security_level": 3,
@@ -102,13 +118,12 @@ class CryptoVault:
                 "sec_question": "ペットの名前",
                 "sec_answer": "ポチ",
                 "url": "https://moneyforward.com",
-                "aliases": ["マネーフォワード", "mfクラウド", "マネーフォワードme"],
+                "aliases": ["マネーフォワード", "mfクラウド", "マネーフォワードme", "mf-771122"],
                 "logo_image": ""
             }
         ]
 
     def load_vault(self):
-        # Always load local persistent data first
         local_accs = []
         if os.path.exists(DATA_FILE):
             try:
@@ -121,14 +136,12 @@ class CryptoVault:
                 local_accs = []
 
         if not local_accs:
-            # Populate default sample accounts if empty
             local_accs = self._get_default_sample_accounts()
             self.accounts = local_accs
             self.save_local_file()
         else:
             self.accounts = local_accs
 
-        # Fetch cloud accounts safely if Google user email is active
         try:
             cloud_accs = self.firebase.fetch_from_cloud()
             if cloud_accs is not None and len(cloud_accs) > 0:
@@ -176,7 +189,6 @@ class CryptoVault:
         import uuid
         acc_id = str(uuid.uuid4())[:8]
 
-        # Use field1_value/field2_value as primary, fallback to alias1/alias2 for compatibility
         f1_n = field1_name.strip()
         f1_v = field1_value.strip() or alias1.strip()
         f2_n = field2_name.strip()
@@ -197,9 +209,9 @@ class CryptoVault:
             "name": name,
             "alias1": f1_v,
             "alias2": f2_v,
-            "field1_name": f1_n or "追加項目1",
+            "field1_name": f1_n,
             "field1_value": f1_v,
-            "field2_name": f2_n or "追加項目2",
+            "field2_name": f2_n,
             "field2_value": f2_v,
             "username": username,
             "password": password,
@@ -276,7 +288,11 @@ class CryptoVault:
         return match_logo_image(target_img, self.accounts, threshold=0.75)
 
     def export_accounts_to_csv(self, file_path: str) -> int:
-        headers = ["会社名", "製品名1", "製品名2", "ID", "パスワード", "セキュリティレベル", "備考", "秘密の質問", "秘密の答え", "カテゴリー", "URL"]
+        headers = [
+            "会社名", "製品名1/別名1", "製品名2/別名2", "ID", "パスワード", "セキュリティレベル",
+            "第3項目タイトル", "第3項目文字列", "第4項目タイトル", "第4項目文字列",
+            "備考", "秘密の質問", "秘密の答え", "カテゴリー", "URL"
+        ]
         rows = []
         for acc in self.accounts:
             rows.append([
@@ -286,6 +302,10 @@ class CryptoVault:
                 acc.get("username", ""),
                 acc.get("password", ""),
                 str(acc.get("security_level", 1)),
+                acc.get("field1_name", ""),
+                acc.get("field1_value") or acc.get("alias1", ""),
+                acc.get("field2_name", ""),
+                acc.get("field2_value") or acc.get("alias2", ""),
                 acc.get("notes", ""),
                 acc.get("sec_question", ""),
                 acc.get("sec_answer", ""),
@@ -315,18 +335,37 @@ class CryptoVault:
                     username = row[3].strip() if len(row) > 3 else ""
                     password = row[4].strip() if len(row) > 4 else ""
                     sec_level = int(row[5]) if len(row) > 5 and row[5].isdigit() else 1
-                    notes = row[6] if len(row) > 6 else ""
-                    sec_q = row[7] if len(row) > 7 else ""
-                    sec_a = row[8] if len(row) > 8 else ""
-                    cat = row[9] if len(row) > 9 else "一般"
-                    url = row[10] if len(row) > 10 else ""
+
+                    # Support 15-column format with dedicated field1/field2 titles
+                    if len(row) >= 15:
+                        f1_name = row[6].strip()
+                        f1_val = row[7].strip()
+                        f2_name = row[8].strip()
+                        f2_val = row[9].strip()
+                        notes = row[10]
+                        sec_q = row[11]
+                        sec_a = row[12]
+                        cat = row[13]
+                        url = row[14]
+                    else:
+                        f1_name = ""
+                        f1_val = alias1
+                        f2_name = ""
+                        f2_val = alias2
+                        notes = row[6] if len(row) > 6 else ""
+                        sec_q = row[7] if len(row) > 7 else ""
+                        sec_a = row[8] if len(row) > 8 else ""
+                        cat = row[9] if len(row) > 9 else "一般"
+                        url = row[10] if len(row) > 10 else ""
 
                     if name and username and password:
                         self.add_account(
                             name=name, username=username, password=password,
                             security_level=sec_level, category=cat, url=url,
                             notes=notes, sec_question=sec_q, sec_answer=sec_a,
-                            alias1=alias1, alias2=alias2
+                            alias1=f1_val or alias1, alias2=f2_val or alias2,
+                            field1_name=f1_name, field1_value=f1_val or alias1,
+                            field2_name=f2_name, field2_value=f2_val or alias2
                         )
                         count += 1
         return count

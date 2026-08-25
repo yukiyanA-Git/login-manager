@@ -52,7 +52,7 @@ class DataMigrationHelpDialog(QDialog):
         <h3>☁️ 方法2. オンデマンド・クラウドバックアップを使ったお引っ越し</h3>
         <p>USBメモリが手元にない場合や、定期的なオンラインバックアップとして活用できます。</p>
         <ul>
-            <li><b>【旧PCでの操作】</b>: 管理画面の <b>[☁️ クラウドへ保存]</b> を押し、マスターPINとGoogleメールアドレスを入力して保存します。<b>※保存完了後通信は即座に完全切断されます。</b></li>
+            <li><b>【旧PCでの操作】</b>: 管理画面の <b>[☁️ クラウドへ保存]</b> を押し、マスターPINとGoogleメールアドレスを入力して保存します。<b>※保存完了後通信は即座に完全自動切断されます。</b></li>
             <li><b>【新PCでの操作】</b>: 新PCの管理画面で <b>[☁️ クラウドから復元]</b> を押し、同じGoogleアドレスとマスターPINを入力するだけで復元完了です。</li>
         </ul>
 
@@ -78,7 +78,7 @@ class OnDemandCloudDialog(QDialog):
     def __init__(self, firebase_client, mode="backup", parent=None):
         super().__init__(parent)
         self.firebase = firebase_client
-        self.mode = mode  # "backup" or "restore"
+        self.mode = mode
 
         is_backup = (mode == "backup")
         self.setWindowTitle("☁️ オンデマンド・クラウド保存 (暗号化バックアップ)" if is_backup else "☁️ クラウドからデータを復元")
@@ -194,7 +194,7 @@ class MasterPinSettingDialog(QDialog):
         btn_save.clicked.connect(self.do_save)
 
         btn_box.addWidget(btn_cancel)
-        btn_box.addWidget(btn_save)
+        btn_save_box = btn_box
         layout.addLayout(btn_box)
 
     def do_save(self):
@@ -305,28 +305,36 @@ class AccountAddDialog(QDialog):
         extra_form.setContentsMargins(0, 0, 0, 0)
         extra_form.setSpacing(8)
 
-        # ✨【ユーザー様ご要望反映】第3・第4のカスタム追加項目 (タイトル自由作成 ＋ 文字列)
+        # ✨【デザイン・バランス改善】第3・第4の認証項目 (短く綺麗なラベル ＋ わかりやすい枠内プレースホルダー)
         f1_layout = QHBoxLayout()
         self.field1_name_input = QLineEdit()
-        self.field1_name_input.setPlaceholderText("項目タイトル1 (例: 契約者番号, 第2暗証番号)")
-        self.field1_name_input.setFixedWidth(180)
+        self.field1_name_input.setPlaceholderText("項目名 (例: 契約番号)")
+        self.field1_name_input.setFixedWidth(150)
         self.field1_val_input = QLineEdit()
-        self.field1_val_input.setPlaceholderText("実際の文字列 (例: C12345678, 8899)")
+        self.field1_val_input.setPlaceholderText("文字列 (例: C12345678)")
+
         if is_edit:
-            self.field1_name_input.setText(edit_data.get("field1_name", "追加項目1"))
+            f1_n = edit_data.get("field1_name", "")
+            if f1_n and f1_n != "追加項目1":
+                self.field1_name_input.setText(f1_n)
             self.field1_val_input.setText(edit_data.get("field1_value") or edit_data.get("alias1", ""))
+
         f1_layout.addWidget(self.field1_name_input)
         f1_layout.addWidget(self.field1_val_input)
 
         f2_layout = QHBoxLayout()
         self.field2_name_input = QLineEdit()
-        self.field2_name_input.setPlaceholderText("項目タイトル2 (例: 法人コード, 社員ID)")
-        self.field2_name_input.setFixedWidth(180)
+        self.field2_name_input.setPlaceholderText("項目名 (例: 法人コード)")
+        self.field2_name_input.setFixedWidth(150)
         self.field2_val_input = QLineEdit()
-        self.field2_val_input.setPlaceholderText("実際の文字列 (例: CORP-998, EMP-0012)")
+        self.field2_val_input.setPlaceholderText("文字列 (例: CORP-998)")
+
         if is_edit:
-            self.field2_name_input.setText(edit_data.get("field2_name", "追加項目2"))
+            f2_n = edit_data.get("field2_name", "")
+            if f2_n and f2_n != "追加項目2":
+                self.field2_name_input.setText(f2_n)
             self.field2_val_input.setText(edit_data.get("field2_value") or edit_data.get("alias2", ""))
+
         f2_layout.addWidget(self.field2_name_input)
         f2_layout.addWidget(self.field2_val_input)
 
@@ -354,8 +362,9 @@ class AccountAddDialog(QDialog):
         if is_edit:
             self.url_input.setText(edit_data.get("url", ""))
 
-        extra_form.addRow("🔑 第3の認証項目 (タイトル＆文字列):", f1_layout)
-        extra_form.addRow("🔑 第4の認証項目 (タイトル＆文字列):", f2_layout)
+        # Beautifully aligned labels matching 備考・メモ!
+        extra_form.addRow("🔑 第3の認証項目:", f1_layout)
+        extra_form.addRow("🔑 第4の認証項目:", f2_layout)
         extra_form.addRow("備考・メモ:", self.notes_input)
         extra_form.addRow("秘密の質問:", self.sec_q_input)
         extra_form.addRow("秘密の答え:", self.sec_a_input)
@@ -418,19 +427,19 @@ class AccountAddDialog(QDialog):
         self.show()
 
     def get_data(self):
-        f1_n = self.field1_name_input.text().strip() or "追加項目1"
-        f1_v = self.field1_val_input.text().strip()
-        f2_n = self.field2_name_input.text().strip() or "追加項目2"
-        f2_v = self.field2_val_input.text().strip()
+        f1_name = self.field1_name_input.text().strip()
+        f1_val = self.field1_val_input.text().strip()
+        f2_name = self.field2_name_input.text().strip()
+        f2_val = self.field2_val_input.text().strip()
 
         return {
             "name": self.name_input.text().strip(),
-            "alias1": f1_v,
-            "alias2": f2_v,
-            "field1_name": f1_n,
-            "field1_value": f1_v,
-            "field2_name": f2_n,
-            "field2_value": f2_v,
+            "alias1": f1_val,
+            "alias2": f2_val,
+            "field1_name": f1_name,
+            "field1_value": f1_val,
+            "field2_name": f2_name,
+            "field2_value": f2_val,
             "username": self.user_input.text().strip(),
             "password": self.pass_input.text().strip(),
             "security_level": self.level_combo.currentData(),
@@ -534,104 +543,58 @@ class AccountManagerWindow(QMainWindow):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         main_layout.addWidget(self.table)
 
-        # Bottom Luxury Acrylic Ad Banner (アクリル広告枠 - 全公開アプリ相互送客 & 有料プラン案内)
+        # Bottom Unobtrusive Ad Banner
         ad_frame = QFrame()
         ad_frame.setStyleSheet("""
             QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #111827, stop:1 #1F2937);
-                border: 1px solid #D4AF37;
-                border-radius: 10px;
+                background-color: #1F2937;
+                border: 1px solid #374151;
+                border-radius: 8px;
                 padding: 6px 12px;
             }
         """)
         ad_layout = QHBoxLayout(ad_frame)
-        ad_layout.setContentsMargins(8, 4, 8, 4)
-        ad_layout.setSpacing(8)
+        ad_layout.setContentsMargins(6, 4, 6, 4)
 
-        ad_title = QLabel("✨ <b>RECOMMENDED APPS & SPONSOR:</b>")
-        ad_title.setStyleSheet("color: #E6C875; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
+        ad_title = QLabel("📢 <b>おすすめ・連携ツール:</b>")
+        ad_title.setStyleSheet("color: #9CA3AF; font-size: 11px;")
         ad_layout.addWidget(ad_title)
 
-        btn_chronos = QPushButton("⏱️ Chronos (カレンダー&業務)")
+        btn_chronos = QPushButton("⏱️ Chronos - 高機能タイムトラッキング ＆ 業務管理ツール")
         btn_chronos.setStyleSheet("""
             QPushButton {
                 background-color: #4F46E5;
                 color: #FFFFFF;
                 font-weight: bold;
-                font-size: 10px;
-                padding: 4px 8px;
-                border-radius: 5px;
-                border: 1px solid rgba(255, 255, 255, 0.2);
+                font-size: 11px;
+                padding: 4px 10px;
+                border-radius: 4px;
             }
-            QPushButton:hover { background-color: #4338CA; border-color: #E6C875; }
+            QPushButton:hover {
+                background-color: #4338CA;
+            }
         """)
-        btn_chronos.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://chronos-app-d149d.web.app")))
+        btn_chronos.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git")))
 
-        btn_strategy = QPushButton("🎮 Strategy Notebook (ゲーム攻略)")
-        btn_strategy.setStyleSheet("""
+        btn_github = QPushButton("🌐 Login Manager 公式GitHub")
+        btn_github.setStyleSheet("""
             QPushButton {
-                background-color: #0891B2;
-                color: #FFFFFF;
+                background-color: #374151;
+                color: #F9FAFB;
                 font-weight: bold;
-                font-size: 10px;
-                padding: 4px 8px;
-                border-radius: 5px;
-                border: 1px solid rgba(255, 255, 255, 0.2);
+                font-size: 11px;
+                padding: 4px 10px;
+                border-radius: 4px;
             }
-            QPushButton:hover { background-color: #0E7490; border-color: #E6C875; }
-        """)
-        btn_strategy.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://strategy-notebook-app.web.app")))
-
-        btn_microchat = QPushButton("💬 micro-chat (デスクチャット)")
-        btn_microchat.setStyleSheet("""
-            QPushButton {
-                background-color: #2563EB;
-                color: #FFFFFF;
-                font-weight: bold;
-                font-size: 10px;
-                padding: 4px 8px;
-                border-radius: 5px;
-                border: 1px solid rgba(255, 255, 255, 0.2);
+            QPushButton:hover {
+                background-color: #4B5563;
             }
-            QPushButton:hover { background-color: #1D4ED8; border-color: #E6C875; }
         """)
-        btn_microchat.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://micro-office-chat-app.web.app")))
-
-        btn_aura = QPushButton("🏛️ AURAgallery (デジタル美術館)")
-        btn_aura.setStyleSheet("""
-            QPushButton {
-                background-color: #7C3AED;
-                color: #FFFFFF;
-                font-weight: bold;
-                font-size: 10px;
-                padding: 4px 8px;
-                border-radius: 5px;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-            }
-            QPushButton:hover { background-color: #6D28D9; border-color: #E6C875; }
-        """)
-        btn_aura.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://aura-gallery-app.web.app")))
+        btn_github.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git/login-manager")))
 
         ad_layout.addWidget(btn_chronos)
-        ad_layout.addWidget(btn_strategy)
-        ad_layout.addWidget(btn_microchat)
-        ad_layout.addWidget(btn_aura)
+        ad_layout.addWidget(btn_github)
         ad_layout.addStretch()
-
-        btn_ad_free_info = QPushButton("💎 月額100円サブスク(無広告)")
-        btn_ad_free_info.setStyleSheet("""
-            QPushButton {
-                background-color: #D4AF37;
-                color: #000000;
-                font-weight: bold;
-                font-size: 10px;
-                padding: 4px 8px;
-                border-radius: 5px;
-            }
-            QPushButton:hover { background-color: #FFDF73; }
-        """)
-        btn_ad_free_info.clicked.connect(lambda: QMessageBox.information(self, "月額100円サブスクモデル", "【LoginManager 有料プランのご案内】\n\n月額100円サブスクをご利用いただくことで、全ての自社・スポンサー広告枠が完全に非表示となり、継続保守・セキュリティ更新を直接サポートしていただけます！"))
-        ad_layout.addWidget(btn_ad_free_info)
 
         main_layout.addWidget(ad_frame)
 
@@ -697,10 +660,15 @@ class AccountManagerWindow(QMainWindow):
     def export_csv_template(self):
         file_path, _ = QFileDialog.getSaveFileName(self, "CSV一括取込用の雛形データを出力保存", "import_template.csv", "CSV Files (*.csv)")
         if file_path:
-            headers = ["会社名", "製品名1", "製品名2", "ID", "パスワード", "セキュリティレベル", "備考", "秘密の質問", "秘密の答え", "カテゴリー", "URL"]
+            headers = [
+                "会社名", "製品名1/別名1", "製品名2/別名2", "ID", "パスワード", "セキュリティレベル",
+                "第3項目タイトル", "第3項目文字列", "第4項目タイトル", "第4項目文字列",
+                "備考", "秘密の質問", "秘密の答え", "カテゴリー", "URL"
+            ]
             sample_row = [
                 "サンプル株式会社 (記入例)", "サンプル製品名1", "製品名別名2",
                 "sample_user_id@example.com", "SamplePass2026!", "1",
+                "契約番号", "C12345678", "法人コード", "CORP-9988",
                 "ここに備考メモを記入", "秘密の質問サンプル", "秘密の答えサンプル",
                 "一般", "https://example.com"
             ]
@@ -708,7 +676,7 @@ class AccountManagerWindow(QMainWindow):
                 writer = csv.writer(f)
                 writer.writerow(headers)
                 writer.writerow(sample_row)
-            QMessageBox.information(self, "雛形出力完了", f"CSV一括取込用の雛形データ（記入例1行付き）を出力しました:\n\n{file_path}")
+            QMessageBox.information(self, "雛形出力完了", f"CSV一括取込用の雛形データ（新フォーマット・記入例1行付き）を出力しました:\n\n{file_path}")
 
     def export_all_accounts_csv(self):
         if not self.vault.accounts:
@@ -735,7 +703,18 @@ class AccountManagerWindow(QMainWindow):
                 display_name += f" ({', '.join(aliases)})"
 
             has_logo = "🖼️ あり" if acc.get("logo_image") else "なし"
-            has_notes = "あり 📝" if (acc.get("notes") or acc.get("sec_question")) else "なし"
+
+            notes_info = []
+            if acc.get("field1_name") and acc.get("field1_value"):
+                notes_info.append(f"{acc.get('field1_name')}:{acc.get('field1_value')}")
+            if acc.get("field2_name") and acc.get("field2_value"):
+                notes_info.append(f"{acc.get('field2_name')}:{acc.get('field2_value')}")
+            if acc.get("notes"):
+                notes_info.append(acc.get("notes"))
+            if acc.get("sec_question"):
+                notes_info.append(f"Q:{acc.get('sec_question')}")
+
+            has_notes = " / ".join(notes_info) if notes_info else "なし"
 
             item_name = QTableWidgetItem(display_name)
             item_logo = QTableWidgetItem(has_logo)
@@ -792,6 +771,11 @@ class AccountManagerWindow(QMainWindow):
                 acc_data["sec_answer"] = new_data["sec_answer"]
                 acc_data["alias1"] = new_data["alias1"]
                 acc_data["alias2"] = new_data["alias2"]
+                acc_data["field1_name"] = new_data["field1_name"]
+                acc_data["field1_value"] = new_data["field1_value"]
+                acc_data["field2_name"] = new_data["field2_name"]
+                acc_data["field2_value"] = new_data["field2_value"]
+
                 if new_data["logo_image"]:
                     acc_data["logo_image"] = new_data["logo_image"]
 
@@ -800,6 +784,11 @@ class AccountManagerWindow(QMainWindow):
                     aliases.append(new_data["alias1"].lower())
                 if new_data["alias2"]:
                     aliases.append(new_data["alias2"].lower())
+                if new_data["field1_name"]:
+                    aliases.append(new_data["field1_name"].lower())
+                if new_data["field2_name"]:
+                    aliases.append(new_data["field2_name"].lower())
+
                 acc_data["aliases"] = aliases
 
                 self.vault.save_vault()
@@ -823,7 +812,11 @@ class AccountManagerWindow(QMainWindow):
                     sec_answer=data["sec_answer"],
                     alias1=data["alias1"],
                     alias2=data["alias2"],
-                    logo_image=data["logo_image"]
+                    logo_image=data["logo_image"],
+                    field1_name=data["field1_name"],
+                    field1_value=data["field1_value"],
+                    field2_name=data["field2_name"],
+                    field2_value=data["field2_value"]
                 )
                 self.refresh_table()
 

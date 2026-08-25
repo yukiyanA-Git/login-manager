@@ -86,6 +86,12 @@ class FirebaseClient:
             return True
         return False
 
+    def fetch_from_cloud(self) -> Optional[List[Dict]]:
+        return None
+
+    def sync_to_cloud(self, accounts: List[Dict]) -> bool:
+        return False
+
     def sync_to_cloud_ondemand(self, email: str, pin: str, accounts: List[Dict]) -> (bool, str):
         """On-demand cloud upload guarded by PIN authentication. Instantly disconnects after sync."""
         if not self.verify_master_pin(pin):
@@ -108,6 +114,10 @@ class FirebaseClient:
                     "name": {"stringValue": acc.get("name", "")},
                     "alias1": {"stringValue": acc.get("alias1", "")},
                     "alias2": {"stringValue": acc.get("alias2", "")},
+                    "field1_name": {"stringValue": acc.get("field1_name", "")},
+                    "field1_value": {"stringValue": acc.get("field1_value", "")},
+                    "field2_name": {"stringValue": acc.get("field2_name", "")},
+                    "field2_value": {"stringValue": acc.get("field2_value", "")},
                     "username": {"stringValue": acc.get("username", "")},
                     "password": {"stringValue": acc.get("password", "")},
                     "security_level": {"integerValue": int(acc.get("security_level", 1))},
@@ -121,7 +131,6 @@ class FirebaseClient:
                 body = {"fields": fields}
                 requests.patch(doc_url, json=body, timeout=5)
 
-            # Sync PIN settings as well
             settings_url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents/users/{user_id}/settings/pin_config"
             s_body = {
                 "fields": {
@@ -163,18 +172,30 @@ class FirebaseClient:
                     name_str = fields.get("name", {}).get("stringValue", "")
                     alias1_str = fields.get("alias1", {}).get("stringValue", "")
                     alias2_str = fields.get("alias2", {}).get("stringValue", "")
+                    f1_n = fields.get("field1_name", {}).get("stringValue", "")
+                    f1_v = fields.get("field1_value", {}).get("stringValue", "") or alias1_str
+                    f2_n = fields.get("field2_name", {}).get("stringValue", "")
+                    f2_v = fields.get("field2_value", {}).get("stringValue", "") or alias2_str
 
                     aliases = [name_str.lower()]
-                    if alias1_str:
-                        aliases.append(alias1_str.lower())
-                    if alias2_str:
-                        aliases.append(alias2_str.lower())
+                    if f1_v:
+                        aliases.append(f1_v.lower())
+                    if f2_v:
+                        aliases.append(f2_v.lower())
+                    if f1_n:
+                        aliases.append(f1_n.lower())
+                    if f2_n:
+                        aliases.append(f2_n.lower())
 
                     acc = {
                         "id": doc_id,
                         "name": name_str,
-                        "alias1": alias1_str,
-                        "alias2": alias2_str,
+                        "alias1": f1_v,
+                        "alias2": f2_v,
+                        "field1_name": f1_n,
+                        "field1_value": f1_v,
+                        "field2_name": f2_n,
+                        "field2_value": f2_v,
                         "username": fields.get("username", {}).get("stringValue", ""),
                         "password": fields.get("password", {}).get("stringValue", ""),
                         "security_level": int(fields.get("security_level", {}).get("integerValue", 1)),
