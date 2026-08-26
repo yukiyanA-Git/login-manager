@@ -134,8 +134,8 @@ class FloatingPopupWindow(QWidget):
         pass_layout.addWidget(btn_copy_pass)
         self.layout.addLayout(pass_layout)
 
-        # ✨【ご要望反映】第3・第4のカスタム追加項目の自動コピー行
-        f1_title = self.account_data.get("field1_name") or "追加項目1"
+        # ✨【修正】第3・第4の認証項目の値（文字列）を100%確実にクリップボードへコピー！
+        f1_title = self.account_data.get("field1_name") or "第3項目"
         f1_val = self.account_data.get("field1_value") or self.account_data.get("alias1", "")
         if f1_val:
             f1_layout = QHBoxLayout()
@@ -143,15 +143,15 @@ class FloatingPopupWindow(QWidget):
             f1_lbl.setFixedWidth(75)
             f1_field = QLineEdit(f1_val)
             f1_field.setReadOnly(True)
-            btn_copy_f1 = QPushButton(f"📋 {f1_title}をコピー")
+            btn_copy_f1 = QPushButton(f"📋 コピー")
             btn_copy_f1.setStyleSheet("background-color: #0891B2; color: white; font-weight: bold;")
-            btn_copy_f1.clicked.connect(lambda f_v=f1_val, f_t=f1_title: self.copy_text(f_v, f"📋 {f_t}をコピーしました！"))
+            btn_copy_f1.clicked.connect(lambda _, v=f1_val, t=f1_title: self.copy_text(v, f"📋 {t}の文字列をコピーしました！"))
             f1_layout.addWidget(f1_lbl)
             f1_layout.addWidget(f1_field)
             f1_layout.addWidget(btn_copy_f1)
             self.layout.addLayout(f1_layout)
 
-        f2_title = self.account_data.get("field2_name") or "追加項目2"
+        f2_title = self.account_data.get("field2_name") or "第4項目"
         f2_val = self.account_data.get("field2_value") or self.account_data.get("alias2", "")
         if f2_val:
             f2_layout = QHBoxLayout()
@@ -159,9 +159,9 @@ class FloatingPopupWindow(QWidget):
             f2_lbl.setFixedWidth(75)
             f2_field = QLineEdit(f2_val)
             f2_field.setReadOnly(True)
-            btn_copy_f2 = QPushButton(f"📋 {f2_title}をコピー")
+            btn_copy_f2 = QPushButton(f"📋 コピー")
             btn_copy_f2.setStyleSheet("background-color: #4F46E5; color: white; font-weight: bold;")
-            btn_copy_f2.clicked.connect(lambda f_v=f2_val, f_t=f2_title: self.copy_text(f_v, f"📋 {f_t}をコピーしました！"))
+            btn_copy_f2.clicked.connect(lambda _, v=f2_val, t=f2_title: self.copy_text(v, f"📋 {t}の文字列をコピーしました！"))
             f2_layout.addWidget(f2_lbl)
             f2_layout.addWidget(f2_field)
             f2_layout.addWidget(btn_copy_f2)
@@ -198,7 +198,7 @@ class FloatingPopupWindow(QWidget):
                 ans_field = QLineEdit(self.account_data.get("sec_answer"))
                 ans_field.setReadOnly(True)
                 btn_copy_ans = QPushButton("📋 コピー")
-                btn_copy_ans.clicked.connect(lambda: self.copy_text(self.account_data.get("sec_answer"), "秘密の答えをコピーしました！"))
+                btn_copy_ans.clicked.connect(lambda _, a_val=self.account_data.get("sec_answer"): self.copy_text(a_val, "秘密の答えをコピーしました！"))
                 ans_layout.addWidget(ans_label)
                 ans_layout.addWidget(ans_field)
                 ans_layout.addWidget(btn_copy_ans)
@@ -230,7 +230,7 @@ class FloatingPopupWindow(QWidget):
     def toggle_notes(self):
         self.notes_expanded = not self.notes_expanded
         self.notes_container.setVisible(self.notes_expanded)
-        
+
         f1_val = self.account_data.get("field1_value") or self.account_data.get("alias1", "")
         f2_val = self.account_data.get("field2_value") or self.account_data.get("alias2", "")
         extra_rows_count = (1 if f1_val else 0) + (1 if f2_val else 0)
@@ -254,13 +254,14 @@ class FloatingPopupWindow(QWidget):
             self.pass_field.setEchoMode(QLineEdit.Password)
 
     def copy_id(self):
-        self.copy_text(self.account_data.get('username', ''), "📋 IDをコピーしました！(Ctrl+Vで貼り付け)")
+        self.copy_text(self.id_field.text(), "📋 IDをコピーしました！")
 
     def copy_password(self):
-        self.copy_text(self.account_data.get('password', ''), "📋 パスワードをコピーしました！(Ctrl+Vで貼り付け)")
+        self.copy_text(self.pass_field.text(), "📋 パスワードをコピーしました！")
 
     def copy_text(self, text: str, toast_msg: str):
-        clipboard = QApplication.clipboard()
-        clipboard.setText(text)
-        self.toast_label.setText(toast_msg)
-        QTimer.singleShot(2500, lambda: self.toast_label.setText(""))
+        if text:
+            clipboard = QApplication.clipboard()
+            clipboard.setText(text)
+            self.toast_label.setText(toast_msg)
+            QTimer.singleShot(2500, lambda: self.toast_label.setText(""))
