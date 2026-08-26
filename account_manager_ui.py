@@ -795,6 +795,15 @@ class AccountManagerWindow(QMainWindow):
                 self.refresh_table()
 
     def open_add_dialog(self, initial_name: str = "", logo_b64: str = ""):
+        MAX_LIMIT = 30
+        if len(self.vault.accounts) >= MAX_LIMIT:
+            QMessageBox.warning(
+                self,
+                "アカウント登録上限 (30件)",
+                f"🔒 無料版のアカウント保存上限（最大 {MAX_LIMIT} 件）に達しました。\n\n新規追加する場合は、不要な登録アカウントを削除するか、上限解放機能をご利用ください。"
+            )
+            return
+
         overlay_cb = self.overlay.show_overlay_for_register if self.overlay else None
         dialog = AccountAddDialog(initial_name=initial_name, logo_b64=logo_b64, overlay_callback=overlay_cb, parent=self)
         if dialog.exec() == QDialog.Accepted:
@@ -821,6 +830,15 @@ class AccountManagerWindow(QMainWindow):
                 self.refresh_table()
 
     def import_csv(self):
+        MAX_LIMIT = 30
+        if len(self.vault.accounts) >= MAX_LIMIT:
+            QMessageBox.warning(
+                self,
+                "アカウント登録上限 (30件)",
+                f"🔒 無料版のアカウント保存上限（最大 {MAX_LIMIT} 件）に達しているため、CSVインポートを行えません。\n\n既存の不要なアカウントを削除するか、上限解放機能をご利用ください。"
+            )
+            return
+
         file_path, _ = QFileDialog.getOpenFileName(self, "CSVファイルの取り込み", "", "CSV Files (*.csv)")
         if file_path:
             count = self.vault.import_csv(file_path)
