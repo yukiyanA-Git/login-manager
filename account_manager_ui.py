@@ -541,22 +541,22 @@ class AccountManagerWindow(QMainWindow):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         main_layout.addWidget(self.table)
 
-        # ✨【ユーザー様ご要望】yukiyanArt 公式ロゴ ＆ Dark Glassmorphism サポートボタン付きコンパクトバナー
+        # ✨【自社ブランド ＆ 4大Webアプリファミリー＆サポート窓口バナー】
         ad_frame = QFrame()
         ad_frame.setObjectName("yukiyanArtBanner")
         ad_frame.setStyleSheet("""
             QFrame#yukiyanArtBanner {
-                background-color: rgba(17, 24, 39, 0.85);
+                background-color: rgba(17, 24, 39, 0.88);
                 border: 1px solid rgba(255, 255, 255, 0.12);
                 border-radius: 8px;
-                padding: 3px 8px;
+                padding: 3px 6px;
             }
         """)
         ad_layout = QHBoxLayout(ad_frame)
-        ad_layout.setContentsMargins(8, 3, 8, 3)
-        ad_layout.setSpacing(10)
+        ad_layout.setContentsMargins(6, 3, 6, 3)
+        ad_layout.setSpacing(6)
 
-        # 公式ロゴ画像 (C:\Users\Iwamoto\.gemini\antigravity\scratch\feedback_hub\assets\icons\yukiyanart_logo.jpg)
+        # 1. 自社ロゴ
         logo_path = r"C:\Users\Iwamoto\.gemini\antigravity\scratch\feedback_hub\assets\icons\yukiyanart_logo.jpg"
         if not os.path.exists(logo_path):
             logo_path = os.path.join(os.path.dirname(__file__), "yukiyanart_logo.jpg")
@@ -564,80 +564,122 @@ class AccountManagerWindow(QMainWindow):
         if os.path.exists(logo_path):
             logo_pixmap = QPixmap(logo_path)
             if not logo_pixmap.isNull():
-                scaled_logo = logo_pixmap.scaled(22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                scaled_logo = logo_pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 logo_label = QLabel()
                 logo_label.setPixmap(scaled_logo)
-                logo_label.setFixedSize(22, 22)
+                logo_label.setFixedSize(20, 20)
                 ad_layout.addWidget(logo_label)
 
         brand_label = QLabel("<b>yukiyanArt</b>")
         brand_label.setStyleSheet("color: #F9FAFB; font-size: 11px; font-weight: bold; font-family: 'Segoe UI', sans-serif;")
         ad_layout.addWidget(brand_label)
 
-        ad_title = QLabel("｜ 📢 <b>公式サポート ＆ 関連ツール:</b>")
-        ad_title.setStyleSheet("color: #9CA3AF; font-size: 11px;")
-        ad_layout.addWidget(ad_title)
-
-        # yukiyanArt 共通デザイン 'Dark Glassmorphism' ボタン (feedbackhub://open?app_id=LoginManager 起動)
-        btn_feedback = QPushButton("💬 ご意見・ご要望・サポート窓口")
+        # 2. 問合せのボタン
+        btn_feedback = QPushButton("💬 サポート・問合せ")
         btn_feedback.setStyleSheet("""
             QPushButton {
-                background-color: rgba(255, 255, 255, 0.08);
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                border-radius: 5px;
+                background-color: rgba(16, 185, 129, 0.18);
+                border: 1px solid rgba(52, 211, 153, 0.45);
+                border-radius: 4px;
                 color: #6EE7B7;
                 font-weight: bold;
-                font-size: 11px;
-                padding: 3px 10px;
+                font-size: 10.5px;
+                padding: 2px 7px;
             }
             QPushButton:hover {
-                background-color: rgba(16, 185, 129, 0.25);
-                border: 1px solid rgba(52, 211, 153, 0.6);
-                color: #A7F3D0;
+                background-color: rgba(16, 185, 129, 0.35);
+                color: #FFFFFF;
             }
         """)
-        btn_feedback.setToolTip("タップするとyukiyanArt Feedback Hubアプリを起動します")
-        btn_feedback.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("feedbackhub://open?app_id=LoginManager")))
+        btn_feedback.setToolTip("yukiyanArt サポート・ご意見要望窓口を開く")
+        btn_feedback.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://yukiyanart-feedback-hub.web.app/?app_id=login_manager")))
+        ad_layout.addWidget(btn_feedback)
 
+        divider_label = QLabel("｜")
+        divider_label.setStyleSheet("color: #4B5563; font-size: 11px;")
+        ad_layout.addWidget(divider_label)
+
+        # 3. 4つのアプリ (現在申請中の4大Webアプリ)
         btn_chronos = QPushButton("⏱️ Chronos")
         btn_chronos.setStyleSheet("""
             QPushButton {
-                background-color: rgba(79, 70, 229, 0.3);
+                background-color: rgba(79, 70, 229, 0.25);
                 border: 1px solid rgba(99, 102, 241, 0.4);
                 color: #C7D2FE;
                 font-weight: bold;
-                font-size: 11px;
-                padding: 3px 8px;
-                border-radius: 5px;
+                font-size: 10.5px;
+                padding: 2px 7px;
+                border-radius: 4px;
             }
             QPushButton:hover {
-                background-color: rgba(79, 70, 229, 0.6);
+                background-color: rgba(79, 70, 229, 0.5);
                 color: #FFFFFF;
             }
         """)
-        btn_chronos.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git")))
+        btn_chronos.setToolTip("Chronos - スケジュール・タスク・タイムシフト統合カレンダー")
+        btn_chronos.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://chronos-app-d149d.web.app")))
 
-        btn_github = QPushButton("🌐 公式GitHub")
-        btn_github.setStyleSheet("""
+        btn_deskchat = QPushButton("💬 Desk Chat")
+        btn_deskchat.setStyleSheet("""
             QPushButton {
-                background-color: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(255, 255, 255, 0.15);
-                color: #D1D5DB;
+                background-color: rgba(14, 165, 233, 0.25);
+                border: 1px solid rgba(56, 189, 248, 0.4);
+                color: #7DD3FC;
                 font-weight: bold;
-                font-size: 11px;
-                padding: 3px 8px;
-                border-radius: 5px;
+                font-size: 10.5px;
+                padding: 2px 7px;
+                border-radius: 4px;
             }
             QPushButton:hover {
-                background-color: rgba(255, 255, 255, 0.15);
+                background-color: rgba(14, 165, 233, 0.5);
                 color: #FFFFFF;
             }
         """)
-        btn_github.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git/login-manager")))
+        btn_deskchat.setToolTip("Desk Chat - マイクロオフィス・チームチャット")
+        btn_deskchat.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://micro-office-chat-app.web.app")))
 
-        ad_layout.addWidget(btn_feedback)
+        btn_strategynote = QPushButton("📒 STRATEGYNOTE")
+        btn_strategynote.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(168, 85, 247, 0.25);
+                border: 1px solid rgba(192, 132, 252, 0.4);
+                color: #E9D5FF;
+                font-weight: bold;
+                font-size: 10.5px;
+                padding: 2px 7px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: rgba(168, 85, 247, 0.5);
+                color: #FFFFFF;
+            }
+        """)
+        btn_strategynote.setToolTip("STRATEGYNOTE - 3Dリアル見開きWebデジタルノート")
+        btn_strategynote.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://strategy-notebook-app.web.app")))
+
+        btn_aura = QPushButton("🏛️ AURA Gallery")
+        btn_aura.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(234, 179, 8, 0.25);
+                border: 1px solid rgba(250, 204, 21, 0.4);
+                color: #FEF08A;
+                font-weight: bold;
+                font-size: 10.5px;
+                padding: 2px 7px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: rgba(234, 179, 8, 0.5);
+                color: #FFFFFF;
+            }
+        """)
+        btn_aura.setToolTip("AURA Gallery - 3Dバーチャル個室アートギャラリー")
+        btn_aura.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://aura-gallery-app.web.app")))
+
         ad_layout.addWidget(btn_chronos)
-        ad_layout.addWidget(btn_github)
+        ad_layout.addWidget(btn_deskchat)
+        ad_layout.addWidget(btn_strategynote)
+        ad_layout.addWidget(btn_aura)
         ad_layout.addStretch()
 
         main_layout.addWidget(ad_frame)
