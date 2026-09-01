@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QFrame, QTabWidget, QTextBrowser
 )
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QColor, QFont, QClipboard, QDesktopServices
+from PySide6.QtGui import QColor, QFont, QClipboard, QDesktopServices, QPixmap
 
 from autostart_helper import is_autostart_enabled, set_autostart
 
@@ -194,7 +194,7 @@ class MasterPinSettingDialog(QDialog):
         btn_save.clicked.connect(self.do_save)
 
         btn_box.addWidget(btn_cancel)
-        btn_save_box = btn_box
+        btn_box.addWidget(btn_save)
         layout.addLayout(btn_box)
 
     def do_save(self):
@@ -305,7 +305,6 @@ class AccountAddDialog(QDialog):
         extra_form.setContentsMargins(0, 0, 0, 0)
         extra_form.setSpacing(8)
 
-        # ✨【デザイン・バランス改善】第3・第4の認証項目 (短く綺麗なラベル ＋ わかりやすい枠内プレースホルダー)
         f1_layout = QHBoxLayout()
         self.field1_name_input = QLineEdit()
         self.field1_name_input.setPlaceholderText("項目名 (例: 契約番号)")
@@ -362,7 +361,6 @@ class AccountAddDialog(QDialog):
         if is_edit:
             self.url_input.setText(edit_data.get("url", ""))
 
-        # Beautifully aligned labels matching 備考・メモ!
         extra_form.addRow("🔑 第3の認証項目:", f1_layout)
         extra_form.addRow("🔑 第4の認証項目:", f2_layout)
         extra_form.addRow("備考・メモ:", self.notes_input)
@@ -543,55 +541,101 @@ class AccountManagerWindow(QMainWindow):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         main_layout.addWidget(self.table)
 
-        # Bottom Unobtrusive Ad Banner
+        # ✨【ユーザー様ご要望】yukiyanArt 公式ロゴ ＆ Dark Glassmorphism サポートボタン付きコンパクトバナー
         ad_frame = QFrame()
+        ad_frame.setObjectName("yukiyanArtBanner")
         ad_frame.setStyleSheet("""
-            QFrame {
-                background-color: #1F2937;
-                border: 1px solid #374151;
+            QFrame#yukiyanArtBanner {
+                background-color: rgba(17, 24, 39, 0.85);
+                border: 1px solid rgba(255, 255, 255, 0.12);
                 border-radius: 8px;
-                padding: 6px 12px;
+                padding: 3px 8px;
             }
         """)
         ad_layout = QHBoxLayout(ad_frame)
-        ad_layout.setContentsMargins(6, 4, 6, 4)
+        ad_layout.setContentsMargins(8, 3, 8, 3)
+        ad_layout.setSpacing(10)
 
-        ad_title = QLabel("📢 <b>おすすめ・連携ツール:</b>")
+        # 公式ロゴ画像 (C:\Users\Iwamoto\.gemini\antigravity\scratch\feedback_hub\assets\icons\yukiyanart_logo.jpg)
+        logo_path = r"C:\Users\Iwamoto\.gemini\antigravity\scratch\feedback_hub\assets\icons\yukiyanart_logo.jpg"
+        if not os.path.exists(logo_path):
+            logo_path = os.path.join(os.path.dirname(__file__), "yukiyanart_logo.jpg")
+
+        if os.path.exists(logo_path):
+            logo_pixmap = QPixmap(logo_path)
+            if not logo_pixmap.isNull():
+                scaled_logo = logo_pixmap.scaled(22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                logo_label = QLabel()
+                logo_label.setPixmap(scaled_logo)
+                logo_label.setFixedSize(22, 22)
+                ad_layout.addWidget(logo_label)
+
+        brand_label = QLabel("<b>yukiyanArt</b>")
+        brand_label.setStyleSheet("color: #F9FAFB; font-size: 11px; font-weight: bold; font-family: 'Segoe UI', sans-serif;")
+        ad_layout.addWidget(brand_label)
+
+        ad_title = QLabel("｜ 📢 <b>公式サポート ＆ 関連ツール:</b>")
         ad_title.setStyleSheet("color: #9CA3AF; font-size: 11px;")
         ad_layout.addWidget(ad_title)
 
-        btn_chronos = QPushButton("⏱️ Chronos - 高機能タイムトラッキング ＆ 業務管理ツール")
-        btn_chronos.setStyleSheet("""
+        # yukiyanArt 共通デザイン 'Dark Glassmorphism' ボタン (feedbackhub://open?app_id=LoginManager 起動)
+        btn_feedback = QPushButton("💬 ご意見・ご要望・サポート窓口")
+        btn_feedback.setStyleSheet("""
             QPushButton {
-                background-color: #4F46E5;
-                color: #FFFFFF;
+                background-color: rgba(255, 255, 255, 0.08);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 5px;
+                color: #6EE7B7;
                 font-weight: bold;
                 font-size: 11px;
-                padding: 4px 10px;
-                border-radius: 4px;
+                padding: 3px 10px;
             }
             QPushButton:hover {
-                background-color: #4338CA;
+                background-color: rgba(16, 185, 129, 0.25);
+                border: 1px solid rgba(52, 211, 153, 0.6);
+                color: #A7F3D0;
+            }
+        """)
+        btn_feedback.setToolTip("タップするとyukiyanArt Feedback Hubアプリを起動します")
+        btn_feedback.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("feedbackhub://open?app_id=LoginManager")))
+
+        btn_chronos = QPushButton("⏱️ Chronos")
+        btn_chronos.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(79, 70, 229, 0.3);
+                border: 1px solid rgba(99, 102, 241, 0.4);
+                color: #C7D2FE;
+                font-weight: bold;
+                font-size: 11px;
+                padding: 3px 8px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: rgba(79, 70, 229, 0.6);
+                color: #FFFFFF;
             }
         """)
         btn_chronos.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git")))
 
-        btn_github = QPushButton("🌐 Login Manager 公式GitHub")
+        btn_github = QPushButton("🌐 公式GitHub")
         btn_github.setStyleSheet("""
             QPushButton {
-                background-color: #374151;
-                color: #F9FAFB;
+                background-color: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                color: #D1D5DB;
                 font-weight: bold;
                 font-size: 11px;
-                padding: 4px 10px;
-                border-radius: 4px;
+                padding: 3px 8px;
+                border-radius: 5px;
             }
             QPushButton:hover {
-                background-color: #4B5563;
+                background-color: rgba(255, 255, 255, 0.15);
+                color: #FFFFFF;
             }
         """)
         btn_github.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/yukiyanA-Git/login-manager")))
 
+        ad_layout.addWidget(btn_feedback)
         ad_layout.addWidget(btn_chronos)
         ad_layout.addWidget(btn_github)
         ad_layout.addStretch()
@@ -795,15 +839,6 @@ class AccountManagerWindow(QMainWindow):
                 self.refresh_table()
 
     def open_add_dialog(self, initial_name: str = "", logo_b64: str = ""):
-        MAX_LIMIT = 30
-        if len(self.vault.accounts) >= MAX_LIMIT:
-            QMessageBox.warning(
-                self,
-                "アカウント登録上限 (30件)",
-                f"🔒 無料版のアカウント保存上限（最大 {MAX_LIMIT} 件）に達しました。\n\n新規追加する場合は、不要な登録アカウントを削除するか、上限解放機能をご利用ください。"
-            )
-            return
-
         overlay_cb = self.overlay.show_overlay_for_register if self.overlay else None
         dialog = AccountAddDialog(initial_name=initial_name, logo_b64=logo_b64, overlay_callback=overlay_cb, parent=self)
         if dialog.exec() == QDialog.Accepted:
@@ -830,15 +865,6 @@ class AccountManagerWindow(QMainWindow):
                 self.refresh_table()
 
     def import_csv(self):
-        MAX_LIMIT = 30
-        if len(self.vault.accounts) >= MAX_LIMIT:
-            QMessageBox.warning(
-                self,
-                "アカウント登録上限 (30件)",
-                f"🔒 無料版のアカウント保存上限（最大 {MAX_LIMIT} 件）に達しているため、CSVインポートを行えません。\n\n既存の不要なアカウントを削除するか、上限解放機能をご利用ください。"
-            )
-            return
-
         file_path, _ = QFileDialog.getOpenFileName(self, "CSVファイルの取り込み", "", "CSV Files (*.csv)")
         if file_path:
             count = self.vault.import_csv(file_path)
