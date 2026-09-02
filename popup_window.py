@@ -14,12 +14,12 @@ class FloatingPopupWindow(QWidget):
 
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedWidth(360)
+        self.setFixedWidth(400)
         self.setFixedHeight(230)
 
         if pos:
             screen = QApplication.primaryScreen().geometry()
-            x = min(pos.x() + 10, screen.width() - 370)
+            x = min(pos.x() + 10, screen.width() - 410)
             y = min(pos.y() + 10, screen.height() - 300)
             self.move(max(10, x), max(10, y))
 
@@ -27,7 +27,7 @@ class FloatingPopupWindow(QWidget):
 
     def init_ui(self):
         self.main_frame = QFrame(self)
-        self.main_frame.setGeometry(0, 0, 360, 230)
+        self.main_frame.setGeometry(0, 0, 400, 230)
         self.main_frame.setStyleSheet("""
             QFrame {
                 background-color: #111827;
@@ -65,8 +65,11 @@ class FloatingPopupWindow(QWidget):
         self.layout.setContentsMargins(16, 12, 16, 12)
         self.layout.setSpacing(8)
 
-        # Header bar with optional URL web launcher
+        # Header bar with optional URL web launcher and padded Close Button
         header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 4, 0)
+        header_layout.setSpacing(8)
+
         name_label = QLabel(f"🏢 <b>{self.account_data.get('name', 'サービス名')}</b>")
         name_label.setFont(QFont("Segoe UI", 12, QFont.Bold))
 
@@ -77,8 +80,22 @@ class FloatingPopupWindow(QWidget):
         badge.setStyleSheet(f"background: {badge_color}; color: white; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: bold;")
 
         btn_close = QPushButton("✕")
-        btn_close.setFixedSize(24, 24)
-        btn_close.setStyleSheet("background: transparent; border: none; color: #9CA3AF; font-size: 14px;")
+        btn_close.setFixedSize(26, 26)
+        btn_close.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.08);
+                border: none;
+                border-radius: 13px;
+                color: #9CA3AF;
+                font-size: 13px;
+                font-weight: bold;
+                margin-right: 4px;
+            }
+            QPushButton:hover {
+                background-color: #EF4444;
+                color: #FFFFFF;
+            }
+        """)
         btn_close.clicked.connect(self.close)
 
         header_layout.addWidget(name_label)
@@ -98,7 +115,7 @@ class FloatingPopupWindow(QWidget):
         # ID Line
         id_layout = QHBoxLayout()
         id_label = QLabel("ID / メール:")
-        id_label.setFixedWidth(75)
+        id_label.setFixedWidth(80)
         self.id_field = QLineEdit(self.account_data.get('username', ''))
         self.id_field.setReadOnly(True)
 
@@ -114,7 +131,7 @@ class FloatingPopupWindow(QWidget):
         # Password Line
         pass_layout = QHBoxLayout()
         pass_label = QLabel("パスワード:")
-        pass_label.setFixedWidth(75)
+        pass_label.setFixedWidth(80)
 
         self.pass_field = QLineEdit(self.account_data.get('password', ''))
         self.pass_field.setEchoMode(QLineEdit.Password)
@@ -134,16 +151,16 @@ class FloatingPopupWindow(QWidget):
         pass_layout.addWidget(btn_copy_pass)
         self.layout.addLayout(pass_layout)
 
-        # ✨【修正】第3・第4の認証項目の値（文字列）を100%確実にクリップボードへコピー！
+        # ✨【第3・第4の認証項目のコピー行】
         f1_title = self.account_data.get("field1_name") or "第3項目"
         f1_val = self.account_data.get("field1_value") or self.account_data.get("alias1", "")
         if f1_val:
             f1_layout = QHBoxLayout()
             f1_lbl = QLabel(f"{f1_title}:")
-            f1_lbl.setFixedWidth(75)
+            f1_lbl.setFixedWidth(80)
             f1_field = QLineEdit(f1_val)
             f1_field.setReadOnly(True)
-            btn_copy_f1 = QPushButton(f"📋 コピー")
+            btn_copy_f1 = QPushButton("📋 コピー")
             btn_copy_f1.setStyleSheet("background-color: #0891B2; color: white; font-weight: bold;")
             btn_copy_f1.clicked.connect(lambda _, v=f1_val, t=f1_title: self.copy_text(v, f"📋 {t}の文字列をコピーしました！"))
             f1_layout.addWidget(f1_lbl)
@@ -156,10 +173,10 @@ class FloatingPopupWindow(QWidget):
         if f2_val:
             f2_layout = QHBoxLayout()
             f2_lbl = QLabel(f"{f2_title}:")
-            f2_lbl.setFixedWidth(75)
+            f2_lbl.setFixedWidth(80)
             f2_field = QLineEdit(f2_val)
             f2_field.setReadOnly(True)
-            btn_copy_f2 = QPushButton(f"📋 コピー")
+            btn_copy_f2 = QPushButton("📋 コピー")
             btn_copy_f2.setStyleSheet("background-color: #4F46E5; color: white; font-weight: bold;")
             btn_copy_f2.clicked.connect(lambda _, v=f2_val, t=f2_title: self.copy_text(v, f"📋 {t}の文字列をコピーしました！"))
             f2_layout.addWidget(f2_lbl)
@@ -170,8 +187,8 @@ class FloatingPopupWindow(QWidget):
         # Dynamic window height calculation based on extra fields
         extra_rows_count = (1 if f1_val else 0) + (1 if f2_val else 0)
         base_h = 230 + (extra_rows_count * 36)
-        self.setFixedSize(360, base_h)
-        self.main_frame.setGeometry(0, 0, 360, base_h)
+        self.setFixedSize(400, base_h)
+        self.main_frame.setGeometry(0, 0, 400, base_h)
 
         # Optional Notes & Security Questions Accordion
         has_notes = bool(self.account_data.get("notes") or self.account_data.get("sec_question") or self.account_data.get("sec_answer"))
@@ -194,7 +211,7 @@ class FloatingPopupWindow(QWidget):
             if self.account_data.get("sec_answer"):
                 ans_layout = QHBoxLayout()
                 ans_label = QLabel("秘密の答え:")
-                ans_label.setFixedWidth(75)
+                ans_label.setFixedWidth(80)
                 ans_field = QLineEdit(self.account_data.get("sec_answer"))
                 ans_field.setReadOnly(True)
                 btn_copy_ans = QPushButton("📋 コピー")
