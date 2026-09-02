@@ -67,7 +67,7 @@ class FloatingPopupWindow(QWidget):
 
         # Header bar with optional URL web launcher and padded Close Button
         header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 4, 0)
+        header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(8)
 
         name_label = QLabel(f"🏢 <b>{self.account_data.get('name', 'サービス名')}</b>")
@@ -79,20 +79,25 @@ class FloatingPopupWindow(QWidget):
         badge = QLabel(badge_text)
         badge.setStyleSheet(f"background: {badge_color}; color: white; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: bold;")
 
-        btn_close = QPushButton("✕")
-        btn_close.setFixedSize(26, 26)
+        btn_close = QPushButton("×")
+        btn_close.setObjectName("btnClose")
+        btn_close.setFixedSize(22, 22)
         btn_close.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255, 255, 255, 0.08);
-                border: none;
-                border-radius: 13px;
-                color: #9CA3AF;
+            QPushButton#btnClose {
+                background-color: rgba(255, 255, 255, 0.12);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 11px;
+                color: #E5E7EB;
+                font-family: 'Segoe UI', Arial, sans-serif;
                 font-size: 13px;
                 font-weight: bold;
-                margin-right: 4px;
+                padding: 0px 0px 2px 0px;
+                margin: 0px 2px 0px 0px;
+                text-align: center;
             }
-            QPushButton:hover {
+            QPushButton#btnClose:hover {
                 background-color: #EF4444;
+                border: 1px solid #DC2626;
                 color: #FFFFFF;
             }
         """)
