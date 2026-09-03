@@ -50,8 +50,8 @@ class FirebaseClient:
                 data = json.load(f)
                 self.enabled = data.get("enabled", True)
                 self.project_id = data.get("project_id", "login-manager-official")
-                self.user_email = data.get("user_email", "").strip()
-                self.user_id = data.get("user_id", "").strip()
+                self.user_email = ""
+                self.user_id = ""
                 self.master_pin_hash = data.get("master_pin_hash", self._hash_pin("1234"))
                 self.master_pin_hint = data.get("master_pin_hint", "初期番号(1234)")
         except Exception as e:
@@ -68,8 +68,6 @@ class FirebaseClient:
             "project_id": self.project_id,
             "master_pin_hash": self.master_pin_hash,
             "master_pin_hint": self.master_pin_hint,
-            "user_email": self.user_email,
-            "user_id": self.user_id,
             "notes": "ローカル安全保存モード"
         }
         try:
@@ -141,8 +139,10 @@ class FirebaseClient:
             }
             requests.patch(settings_url, json=s_body, timeout=4)
 
+            self.user_email = ""
             return True, f"Googleアカウント【{clean_email}】へ {len(accounts)} 件のデータを安全にバックアップ保存しました。（保存完了後通信切断済み）"
         except Exception as e:
+            self.user_email = ""
             return False, f"クラウド保存通信エラー: {e}"
 
     def fetch_from_cloud_ondemand(self, email: str, pin: str) -> (Optional[List[Dict]], str):
@@ -208,8 +208,12 @@ class FirebaseClient:
                         "aliases": aliases
                     }
                     accounts.append(acc)
+
+                self.user_email = ""
                 return accounts, f"クラウド【{clean_email}】から {len(accounts)} 件のデータを復元ダウンロードしました。"
             else:
+                self.user_email = ""
                 return None, f"クラウド上にバックアップデータが見つかりませんでした (コード: {resp.status_code})。"
         except Exception as e:
+            self.user_email = ""
             return None, f"クラウド復元通信エラー: {e}"

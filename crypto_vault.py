@@ -142,13 +142,6 @@ class CryptoVault:
         else:
             self.accounts = local_accs
 
-        try:
-            cloud_accs = self.firebase.fetch_from_cloud()
-            if cloud_accs is not None and len(cloud_accs) > 0:
-                self.merge_accounts(cloud_accs)
-        except Exception as e:
-            print(f"Cloud fetch notice: {e}")
-
     def merge_accounts(self, cloud_accs: List[Dict]):
         existing_ids = {a.get("id"): a for a in self.accounts if a.get("id")}
         existing_keys = {f"{a.get('name', '').lower()}_{a.get('username', '').lower()}": a for a in self.accounts}
@@ -167,12 +160,8 @@ class CryptoVault:
         self.save_local_file()
 
     def save_vault(self):
+        # 100% Pure Local Encryption Save (AES-256)
         self.save_local_file()
-        if self.firebase.user_email:
-            try:
-                self.firebase.sync_to_cloud(self.accounts)
-            except Exception as e:
-                print(f"Cloud sync notice: {e}")
 
     def save_local_file(self):
         raw_json = json.dumps(self.accounts, ensure_ascii=False, indent=2).encode("utf-8")
@@ -336,7 +325,6 @@ class CryptoVault:
                     password = row[4].strip() if len(row) > 4 else ""
                     sec_level = int(row[5]) if len(row) > 5 and row[5].isdigit() else 1
 
-                    # Support 15-column format with dedicated field1/field2 titles
                     if len(row) >= 15:
                         f1_name = row[6].strip()
                         f1_val = row[7].strip()

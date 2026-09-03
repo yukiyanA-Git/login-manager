@@ -46,12 +46,8 @@ class QuickTrayMenu(QMenu):
         self.addAction(title_action)
         self.addSeparator()
 
-        user_email = getattr(self.manager_win.vault.firebase, 'user_email', '')
-        if user_email:
-            google_text = f"🔴  Google連動中: {user_email}"
-        else:
-            google_text = "🟢  ローカル安全保存モード (オフライン動作中)"
-
+        # Always explicitly display 🟢 ローカル安全保存モード (オフライン動作中)
+        google_text = "🟢  ローカル安全保存モード (オフライン動作中)"
         action_google = QAction(google_text, self)
         action_google.setEnabled(False)
         self.addAction(action_google)
@@ -99,65 +95,62 @@ class QuickTrayMenu(QMenu):
 
         self.addMenu(bookmark_menu)
 
-        self.addSeparator()
-
+        # Action: Register New Account
         action_register = QAction("➕  新規アカウント登録 (コピー文/画面ロゴから)", self)
         action_register.triggered.connect(self.trigger_register)
         self.addAction(action_register)
 
+        # Action: Quick Clipboard / Window Search
         action_search = QAction("🔍  ログイン情報検索 (コピー文 Ctrl+C)", self)
         action_search.triggered.connect(self.trigger_search)
         self.addAction(action_search)
 
+        # Action: Screen Region OCR & Logo Search
         action_ocr = QAction("📐  画面ロゴ/枠で囲んで検索 (画像比較)", self)
         action_ocr.triggered.connect(self.trigger_ocr)
         self.addAction(action_ocr)
 
         self.addSeparator()
 
+        # Action: Open Manager Window
         action_manage = QAction("⚙️  アカウント管理画面を開く", self)
-        action_manage.triggered.connect(self.trigger_manage)
+        action_manage.triggered.connect(self.open_manager_window)
         self.addAction(action_manage)
 
         self.addSeparator()
 
-        action_quit = QAction("❌  アプリ完全終了", self)
-        action_quit.triggered.connect(QApplication.quit)
+        # Action: Quit App
+        action_quit = QAction("✕  アプリ完全終了", self)
+        action_quit.triggered.connect(self.quit_app)
         self.addAction(action_quit)
 
-    def open_bookmark_and_popup(self, acc: dict):
-        url = acc.get("url", "").strip()
+    def open_bookmark_and_popup(self, acc_data: dict):
+        url = acc_data.get("url", "")
         if url:
             if not url.startswith("http://") and not url.startswith("https://"):
                 url = "https://" + url
             QDesktopServices.openUrl(QUrl(url))
 
-        # Close any active OCR overlays cleanly
-        self.overlay.hide()
-        # Show popup window staying on top so it doesn't get buried!
-        self.overlay.handle_account_found(acc)
+        if self.overlay:
+            self.overlay.handle_account_found(acc_data)
 
     def trigger_register(self):
         clip_text = QApplication.clipboard().text().strip()
-        if clip_text and len(clip_text) < 50:
-            self.overlay.hide()
+        if self.overlay:
             self.manager_win.open_add_dialog(initial_name=clip_text)
-            self.manager_win.show()
-            self.manager_win.raise_()
-            self.manager_win.activateWindow()
-        else:
-            self.overlay.show_overlay_for_register(
-                lambda name, logo_b64="": self.manager_win.open_add_dialog(initial_name=name, logo_b64=logo_b64)
-            )
 
     def trigger_search(self):
-        self.overlay.smart_search()
+        if self.overlay:
+            self.overlay.smart_search()
 
     def trigger_ocr(self):
-        self.overlay.show_overlay()
+        if self.overlay:
+            self.overlay.show_overlay()
 
-    def trigger_manage(self):
-        self.overlay.hide()
+    def open_manager_window(self):
         self.manager_win.show()
         self.manager_win.raise_()
         self.manager_win.activateWindow()
+
+    def quit_app(self):
+        QApplication.quit()
