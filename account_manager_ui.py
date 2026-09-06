@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QDialog, QFormLayout, QLineEdit, QComboBox, QGroupBox, QTextEdit, QApplication,
     QFrame, QTabWidget, QTextBrowser
 )
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QUrl, QTimer
 from PySide6.QtGui import QColor, QFont, QClipboard, QDesktopServices, QPixmap
 
 from autostart_helper import is_autostart_enabled, set_autostart
@@ -541,40 +541,170 @@ class AccountManagerWindow(QMainWindow):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         main_layout.addWidget(self.table)
 
-        # ✨【自社ブランド ＆ 4大Webアプリファミリー＆サポート窓口バナー】
+        # ✨【自社ブランド ＆ スライド数独仕様プロモローテーター ＆ サポート窓口】
         ad_frame = QFrame()
         ad_frame.setObjectName("yukiyanArtBanner")
         ad_frame.setStyleSheet("""
             QFrame#yukiyanArtBanner {
-                background-color: rgba(17, 24, 39, 0.88);
-                border: 1px solid rgba(255, 255, 255, 0.12);
+                background-color: rgba(17, 24, 39, 0.92);
+                border: 1px solid rgba(255, 255, 255, 0.14);
                 border-radius: 8px;
-                padding: 3px 6px;
+                padding: 2px 8px;
             }
         """)
         ad_layout = QHBoxLayout(ad_frame)
         ad_layout.setContentsMargins(6, 3, 6, 3)
-        ad_layout.setSpacing(6)
+        ad_layout.setSpacing(8)
 
-        # 1. 自社ロゴ
-        logo_path = r"C:\Users\Iwamoto\.gemini\antigravity\scratch\feedback_hub\assets\icons\yukiyanart_logo.jpg"
-        if not os.path.exists(logo_path):
-            logo_path = os.path.join(os.path.dirname(__file__), "yukiyanart_logo.jpg")
-
-        if os.path.exists(logo_path):
+        # 1. 自社ブランドロゴ
+        logo_path = self.get_promo_icon_path("yukiyanart_logo.jpg")
+        if logo_path and os.path.exists(logo_path):
             logo_pixmap = QPixmap(logo_path)
             if not logo_pixmap.isNull():
-                scaled_logo = logo_pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                scaled_logo = logo_pixmap.scaled(22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 logo_label = QLabel()
                 logo_label.setPixmap(scaled_logo)
-                logo_label.setFixedSize(20, 20)
+                logo_label.setFixedSize(22, 22)
                 ad_layout.addWidget(logo_label)
 
         brand_label = QLabel("<b>yukiyanArt</b>")
         brand_label.setStyleSheet("color: #F9FAFB; font-size: 11px; font-weight: bold; font-family: 'Segoe UI', sans-serif;")
         ad_layout.addWidget(brand_label)
 
-        # 2. 問合せのボタン
+        div1 = QLabel("｜")
+        div1.setStyleSheet("color: #4B5563; font-size: 11px;")
+        ad_layout.addWidget(div1)
+
+        # 2. スライド数独仕様 自社アプリ紹介プロモカード
+        self.PROMO_APPS = [
+            {
+                "id": "chronos",
+                "name": "Chronos",
+                "sub": "カレンダー＆付箋メモ",
+                "cat": "生産性",
+                "desc": "カレンダーと付箋メモを統合した yukiyanArt の旗艦生産性アプリ",
+                "icon": "chronos.png",
+                "url": "https://chronos-app-d149d.web.app"
+            },
+            {
+                "id": "desk_chat",
+                "name": "Desk Chat",
+                "sub": "デスクチャット",
+                "cat": "コミュニケーション",
+                "desc": "デスク上で快適に使えるクイックコミュニケーションツール",
+                "icon": "desk_chat.png",
+                "url": "https://micro-office-chat-app.web.app"
+            },
+            {
+                "id": "strategy_note",
+                "name": "STRATEGYNOTE",
+                "sub": "戦略思考・アイディアメモ",
+                "cat": "思考整理",
+                "desc": "戦略的な思考整理と3D見開きWebデジタルノート",
+                "icon": "strategy_note.jpg",
+                "url": "https://strategy-notebook-app.web.app"
+            },
+            {
+                "id": "aura_gallery",
+                "name": "AURAGALLERY",
+                "sub": "デジタルアート美術室",
+                "cat": "アート鑑賞",
+                "desc": "デジタルアート作品をバーチャル展示・鑑賞できるオンライン美術室",
+                "icon": "aura_gallery.jpg",
+                "url": "https://aura-gallery-app.web.app"
+            },
+            {
+                "id": "sliding_sudoku",
+                "name": "スライド数独",
+                "sub": "スライドナンプレ",
+                "cat": "脳トレパズル",
+                "desc": "タイルをスライドさせて解く新感覚の数独パズルゲーム",
+                "icon": "yukiyanart_chic_badge.jpg",
+                "url": "https://numpre-shift.web.app"
+            }
+        ]
+        self.current_promo_idx = 0
+
+        # プロモ アイコン
+        self.promo_icon_label = QLabel()
+        self.promo_icon_label.setFixedSize(24, 24)
+        self.promo_icon_label.setStyleSheet("border-radius: 4px; background: rgba(255,255,255,0.05);")
+        ad_layout.addWidget(self.promo_icon_label)
+
+        # プロモ テキストレイアウト（上段: アプリ名・サブ名・カテゴリ / 下段: 説明文）
+        promo_text_layout = QVBoxLayout()
+        promo_text_layout.setContentsMargins(0, 0, 0, 0)
+        promo_text_layout.setSpacing(1)
+
+        self.promo_title_label = QLabel()
+        self.promo_title_label.setStyleSheet("font-family: 'Segoe UI', sans-serif;")
+        self.promo_desc_label = QLabel()
+        self.promo_desc_label.setStyleSheet("color: #9CA3AF; font-size: 10px; font-family: 'Segoe UI', sans-serif;")
+
+        promo_text_layout.addWidget(self.promo_title_label)
+        promo_text_layout.addWidget(self.promo_desc_label)
+        ad_layout.addLayout(promo_text_layout)
+
+        # 前後ナビボタン
+        btn_nav_style = """
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.08);
+                border: 1px solid rgba(255, 255, 255, 0.18);
+                color: #E5E7EB;
+                font-weight: bold;
+                font-size: 11px;
+                border-radius: 3px;
+                min-width: 20px;
+                max-width: 20px;
+                min-height: 20px;
+                max-height: 20px;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.22);
+                color: #FFFFFF;
+            }
+        """
+        self.btn_promo_prev = QPushButton("‹")
+        self.btn_promo_prev.setStyleSheet(btn_nav_style)
+        self.btn_promo_prev.setToolTip("前の自社アプリ")
+        self.btn_promo_prev.clicked.connect(lambda: self.rotate_promo(-1))
+        ad_layout.addWidget(self.btn_promo_prev)
+
+        self.btn_promo_next = QPushButton("›")
+        self.btn_promo_next.setStyleSheet(btn_nav_style)
+        self.btn_promo_next.setToolTip("次の自社アプリ")
+        self.btn_promo_next.clicked.connect(lambda: self.rotate_promo(1))
+        ad_layout.addWidget(self.btn_promo_next)
+
+        # 詳細を見る（開く）ボタン
+        self.btn_promo_cta = QPushButton("詳細を見る ↗")
+        self.btn_promo_cta.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(59, 130, 246, 0.25);
+                border: 1px solid rgba(96, 165, 250, 0.5);
+                color: #93C5FD;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 3px 8px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: rgba(59, 130, 246, 0.45);
+                color: #FFFFFF;
+            }
+        """)
+        self.btn_promo_cta.clicked.connect(self.open_current_promo_url)
+        ad_layout.addWidget(self.btn_promo_cta)
+
+        ad_layout.addStretch()
+
+        # 区切り（問合せは横に配置）
+        div2 = QLabel("｜")
+        div2.setStyleSheet("color: #4B5563; font-size: 11px;")
+        ad_layout.addWidget(div2)
+
+        # 3. 問合せボタン（自社広告の横に配置）
         btn_feedback = QPushButton("💬 サポート・問合せ")
         btn_feedback.setStyleSheet("""
             QPushButton {
@@ -584,7 +714,7 @@ class AccountManagerWindow(QMainWindow):
                 color: #6EE7B7;
                 font-weight: bold;
                 font-size: 10.5px;
-                padding: 2px 7px;
+                padding: 3px 9px;
             }
             QPushButton:hover {
                 background-color: rgba(16, 185, 129, 0.35);
@@ -595,96 +725,67 @@ class AccountManagerWindow(QMainWindow):
         btn_feedback.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://yukiyanart-feedback-hub.web.app/?app_id=login_manager")))
         ad_layout.addWidget(btn_feedback)
 
-        divider_label = QLabel("｜")
-        divider_label.setStyleSheet("color: #4B5563; font-size: 11px;")
-        ad_layout.addWidget(divider_label)
-
-        # 3. 4つのアプリ (現在申請中の4大Webアプリ)
-        btn_chronos = QPushButton("⏱️ Chronos")
-        btn_chronos.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(79, 70, 229, 0.25);
-                border: 1px solid rgba(99, 102, 241, 0.4);
-                color: #C7D2FE;
-                font-weight: bold;
-                font-size: 10.5px;
-                padding: 2px 7px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: rgba(79, 70, 229, 0.5);
-                color: #FFFFFF;
-            }
-        """)
-        btn_chronos.setToolTip("Chronos - スケジュール・タスク・タイムシフト統合カレンダー")
-        btn_chronos.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://chronos-app-d149d.web.app")))
-
-        btn_deskchat = QPushButton("💬 Desk Chat")
-        btn_deskchat.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(14, 165, 233, 0.25);
-                border: 1px solid rgba(56, 189, 248, 0.4);
-                color: #7DD3FC;
-                font-weight: bold;
-                font-size: 10.5px;
-                padding: 2px 7px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: rgba(14, 165, 233, 0.5);
-                color: #FFFFFF;
-            }
-        """)
-        btn_deskchat.setToolTip("Desk Chat - マイクロオフィス・チームチャット")
-        btn_deskchat.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://micro-office-chat-app.web.app")))
-
-        btn_strategynote = QPushButton("📒 STRATEGYNOTE")
-        btn_strategynote.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(168, 85, 247, 0.25);
-                border: 1px solid rgba(192, 132, 252, 0.4);
-                color: #E9D5FF;
-                font-weight: bold;
-                font-size: 10.5px;
-                padding: 2px 7px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: rgba(168, 85, 247, 0.5);
-                color: #FFFFFF;
-            }
-        """)
-        btn_strategynote.setToolTip("STRATEGYNOTE - 3Dリアル見開きWebデジタルノート")
-        btn_strategynote.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://strategy-notebook-app.web.app")))
-
-        btn_aura = QPushButton("🏛️ AURA Gallery")
-        btn_aura.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(234, 179, 8, 0.25);
-                border: 1px solid rgba(250, 204, 21, 0.4);
-                color: #FEF08A;
-                font-weight: bold;
-                font-size: 10.5px;
-                padding: 2px 7px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: rgba(234, 179, 8, 0.5);
-                color: #FFFFFF;
-            }
-        """)
-        btn_aura.setToolTip("AURA Gallery - 3Dバーチャル個室アートギャラリー")
-        btn_aura.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://aura-gallery-app.web.app")))
-
-        ad_layout.addWidget(btn_chronos)
-        ad_layout.addWidget(btn_deskchat)
-        ad_layout.addWidget(btn_strategynote)
-        ad_layout.addWidget(btn_aura)
-        ad_layout.addStretch()
-
         main_layout.addWidget(ad_frame)
 
+        # 初期表示 ＆ 6秒ごとの自動ローテーションタイマー開始
+        self.update_promo_card()
+        self.promo_timer = QTimer(self)
+        self.promo_timer.timeout.connect(lambda: self.rotate_promo(1))
+        self.promo_timer.start(6000)
+
         self.refresh_table()
+
+    def get_promo_icon_path(self, icon_name):
+        base_dirs = [
+            os.path.join(os.path.dirname(__file__), "assets", "icons"),
+            os.path.join(os.path.dirname(__file__), "assets"),
+            os.path.dirname(__file__),
+            r"C:\Users\mabou.DESKTOP-LEOA8QH\.gemini\antigravity\scratch\sliding-sudoku\assets\icons",
+            r"C:\Users\Iwamoto\.gemini\antigravity\scratch\sliding-sudoku\assets\icons"
+        ]
+        for d in base_dirs:
+            p = os.path.join(d, icon_name)
+            if os.path.exists(p):
+                return p
+        return ""
+
+    def update_promo_card(self):
+        app = self.PROMO_APPS[self.current_promo_idx]
+        icon_path = self.get_promo_icon_path(app["icon"])
+        if icon_path and os.path.exists(icon_path):
+            pix = QPixmap(icon_path)
+            if not pix.isNull():
+                scaled = pix.scaled(24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.promo_icon_label.setPixmap(scaled)
+            else:
+                self.promo_icon_label.clear()
+        else:
+            self.promo_icon_label.clear()
+
+        cat_colors = {
+            "生産性": "rgba(99, 102, 241, 0.35); color: #C7D2FE",
+            "コミュニケーション": "rgba(14, 165, 233, 0.35); color: #7DD3FC",
+            "思考整理": "rgba(168, 85, 247, 0.35); color: #E9D5FF",
+            "アート鑑賞": "rgba(234, 179, 8, 0.35); color: #FEF08A",
+            "脳トレパズル": "rgba(16, 185, 129, 0.35); color: #6EE7B7"
+        }
+        badge_style = cat_colors.get(app["cat"], "rgba(255, 255, 255, 0.15); color: #E5E7EB")
+
+        self.promo_title_label.setText(
+            f'<b style="color:#F9FAFB; font-size:11px;">{app["name"]}</b> '
+            f'<span style="color:#9CA3AF; font-size:9.5px;">({app["sub"]})</span> '
+            f'<span style="background-color:{badge_style}; font-size:9px; font-weight:bold; border-radius:3px; padding:1px 5px;">{app["cat"]}</span>'
+        )
+        self.promo_desc_label.setText(app["desc"])
+        self.btn_promo_cta.setToolTip(f'{app["name"]} をブラウザで開く')
+
+    def rotate_promo(self, step=1):
+        self.current_promo_idx = (self.current_promo_idx + step) % len(self.PROMO_APPS)
+        self.update_promo_card()
+
+    def open_current_promo_url(self):
+        app = self.PROMO_APPS[self.current_promo_idx]
+        QDesktopServices.openUrl(QUrl(app["url"]))
 
     def open_migration_guide(self):
         dialog = DataMigrationHelpDialog(self)
