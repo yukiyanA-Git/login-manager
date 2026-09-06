@@ -24,6 +24,8 @@ def build_standalone_exe():
         "--windowed",
         "--name=LoginManager",
         f"--distpath={dist_dir}",
+        "--add-data=assets;assets",
+        "--add-data=yukiyanart_logo.jpg;.",
         "--hidden-import=PySide6",
         "--hidden-import=cryptography",
         "--hidden-import=requests",

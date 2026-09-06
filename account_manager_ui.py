@@ -736,13 +736,21 @@ class AccountManagerWindow(QMainWindow):
         self.refresh_table()
 
     def get_promo_icon_path(self, icon_name):
-        base_dirs = [
+        meipass = getattr(sys, '_MEIPASS', None)
+        base_dirs = []
+        if meipass:
+            base_dirs.extend([
+                os.path.join(meipass, "assets", "icons"),
+                os.path.join(meipass, "assets"),
+                meipass
+            ])
+        base_dirs.extend([
             os.path.join(os.path.dirname(__file__), "assets", "icons"),
             os.path.join(os.path.dirname(__file__), "assets"),
             os.path.dirname(__file__),
             r"C:\Users\mabou.DESKTOP-LEOA8QH\.gemini\antigravity\scratch\sliding-sudoku\assets\icons",
             r"C:\Users\Iwamoto\.gemini\antigravity\scratch\sliding-sudoku\assets\icons"
-        ]
+        ])
         for d in base_dirs:
             p = os.path.join(d, icon_name)
             if os.path.exists(p):
