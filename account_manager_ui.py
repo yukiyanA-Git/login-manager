@@ -1,11 +1,14 @@
 import os
 import sys
 import csv
+import json
+import threading
+import requests
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QMessageBox,
     QDialog, QFormLayout, QLineEdit, QComboBox, QGroupBox, QTextEdit, QApplication,
-    QFrame, QTabWidget, QTextBrowser
+    QFrame, QTabWidget, QTextBrowser, QSizePolicy
 )
 from PySide6.QtCore import Qt, QUrl, QTimer
 from PySide6.QtGui import QColor, QFont, QClipboard, QDesktopServices, QPixmap
@@ -451,6 +454,91 @@ class AccountAddDialog(QDialog):
         }
 
 
+OFFICIAL_10_APPS = [
+    {
+        "id": "chronos",
+        "name": "Chronos",
+        "subName": "カレンダー＆付箋メモ",
+        "category": "スケジュール・生産性",
+        "desc": "タイムブロック型カレンダーとデジタル付箋を融合した yukiyanArt 旗艦アプリ",
+        "imageIcon": "https://yukiyanart-feedback-hub.web.app/assets/icons/chronos.png"
+    },
+    {
+        "id": "desk_chat",
+        "name": "Desk Chat",
+        "subName": "デスクチャット",
+        "category": "コミュニケーション",
+        "desc": "デスク上で作業しながら快適にメッセージ送受信できるスリムチャットツール",
+        "imageIcon": "https://yukiyanart-feedback-hub.web.app/assets/icons/desk_chat.png"
+    },
+    {
+        "id": "login_manager",
+        "name": "LoginManager",
+        "subName": "ログイン＆パスワード管理",
+        "category": "セキュリティ・管理",
+        "desc": "暗号化された安全なパスワード保管庫と一発ログインアシスタントツール",
+        "imageIcon": "https://yukiyanart-feedback-hub.web.app/assets/icons/pass_manager.png"
+    },
+    {
+        "id": "aura_gallery",
+        "name": "AURAGALLERY",
+        "subName": "デジタルアート美術室",
+        "category": "アート・バーチャルギャラリー",
+        "desc": "作品を3Dアクリル額縁で飾る全公開個室ポータル＆バーチャル展示室アプリ",
+        "imageIcon": "https://yukiyanart-feedback-hub.web.app/assets/icons/aura_gallery.jpg"
+    },
+    {
+        "id": "strategy_note",
+        "name": "STRATEGYNOTE",
+        "subName": "戦略思考・マインドマップメモ",
+        "category": "アイディア・思考整理",
+        "desc": "戦略的な思考整理とマインドマップ風ノート作成を行えるナレッジツール",
+        "imageIcon": "https://yukiyanart-feedback-hub.web.app/assets/icons/strategy_note.jpg"
+    },
+    {
+        "id": "sub_monitor_manager",
+        "name": "SubMonitorManager",
+        "subName": "マルチモニター仮想画面管理",
+        "category": "システム・ディスプレイ",
+        "desc": "マルチディスプレイのレイアウトとサブモニター仮想画面配置を最適化するツール",
+        "imageIcon": "https://yukiyanart-feedback-hub.web.app/assets/icons/sub_monitor_manager.png"
+    },
+    {
+        "id": "input_nexus",
+        "name": "InputNexus",
+        "subName": "入力デバイス・キーバインド統合管理",
+        "category": "ユーティリティ・入力",
+        "desc": "キーボード・マウス・各種入力デバイスのカスタムマッピングと統合管理",
+        "imageIcon": "https://yukiyanart-feedback-hub.web.app/assets/icons/input_nexus.jpg"
+    },
+    {
+        "id": "widget_de_news",
+        "name": "widgetでnews",
+        "subName": "デスクトップ常駐ニュース＆雨雲・PCモニター",
+        "category": "デスクトップ・ニュース",
+        "desc": "デスクトップ上に常駐し、最新ニュース・リアルタイム雨雲レーダー・PC負荷状況を表示",
+        "imageIcon": "https://yukiyanart-feedback-hub.web.app/assets/icons/widget_de_news.png"
+    },
+    {
+        "id": "numpre_shift",
+        "name": "動くナンプレ",
+        "subName": "スライド×数独 脳トレパズル",
+        "category": "ゲーム・パズル",
+        "desc": "スライドパズルと数独（ナンプレ）を組み合わせた新感覚の思考型脳トレパズルゲーム",
+        "imageIcon": "https://yukiyanart-feedback-hub.web.app/assets/icons/numpre_shift.png"
+    },
+    {
+        "id": "hex_bastion",
+        "name": "HEX BASTION",
+        "subName": "六角形グリッド防衛戦略",
+        "category": "ゲーム・ストラテジー",
+        "desc": "ヘキサゴン（六角形）マップ上で繰り広げられるシミュレーション防衛ストラテジーゲーム",
+        "imageIcon": "https://yukiyanart-feedback-hub.web.app/assets/icons/hex_bastion.jpg"
+    }
+]
+FALLBACK_LOGO_URL = "https://yukiyanart-feedback-hub.web.app/assets/icons/yukiyanart_logo.jpg"
+
+
 class AccountManagerWindow(QMainWindow):
     def __init__(self, vault_instance, overlay_instance=None):
         super().__init__()
@@ -542,7 +630,12 @@ class AccountManagerWindow(QMainWindow):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         main_layout.addWidget(self.table)
 
-        # ✨【自社ブランド ＆ スライド数独仕様プロモローテーター ＆ サポート窓口】
+        # ✨【自社広告 ＋ 問合せボタン統合バー（パターンβ / LoginManagerスタイル）】
+        self.current_app_id = "login_manager"
+        self.promo_apps = [app for app in OFFICIAL_10_APPS if app.get("id") != self.current_app_id]
+        self.current_promo_idx = 0
+        self.promo_icon_cache = {}
+
         ad_frame = QFrame()
         ad_frame.setObjectName("yukiyanArtBanner")
         ad_frame.setStyleSheet("""
@@ -558,15 +651,12 @@ class AccountManagerWindow(QMainWindow):
         ad_layout.setSpacing(8)
 
         # 1. 自社ブランドロゴ
-        logo_path = self.get_promo_icon_path("yukiyanart_logo.jpg")
-        if logo_path and os.path.exists(logo_path):
-            logo_pixmap = QPixmap(logo_path)
-            if not logo_pixmap.isNull():
-                scaled_logo = logo_pixmap.scaled(22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                logo_label = QLabel()
-                logo_label.setPixmap(scaled_logo)
-                logo_label.setFixedSize(22, 22)
-                ad_layout.addWidget(logo_label)
+        self.brand_logo_label = QLabel()
+        self.brand_logo_label.setFixedSize(22, 22)
+        logo_pix = self.get_promo_pixmap("yukiyanart_logo.jpg", FALLBACK_LOGO_URL)
+        if logo_pix and not logo_pix.isNull():
+            self.brand_logo_label.setPixmap(logo_pix.scaled(22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        ad_layout.addWidget(self.brand_logo_label)
 
         brand_label = QLabel("<b>yukiyanArt</b>")
         brand_label.setStyleSheet("color: #F9FAFB; font-size: 11px; font-weight: bold; font-family: 'Segoe UI', sans-serif;")
@@ -576,56 +666,7 @@ class AccountManagerWindow(QMainWindow):
         div1.setStyleSheet("color: #4B5563; font-size: 11px;")
         ad_layout.addWidget(div1)
 
-        # 2. スライド数独仕様 自社アプリ紹介プロモカード
-        self.PROMO_APPS = [
-            {
-                "id": "chronos",
-                "name": "Chronos",
-                "sub": "カレンダー＆付箋メモ",
-                "cat": "生産性",
-                "desc": "カレンダーと付箋メモを統合した yukiyanArt の旗艦生産性アプリ",
-                "icon": "chronos.png",
-                "url": "https://chronos-app-d149d.web.app"
-            },
-            {
-                "id": "desk_chat",
-                "name": "Desk Chat",
-                "sub": "デスクチャット",
-                "cat": "コミュニケーション",
-                "desc": "デスク上で快適に使えるクイックコミュニケーションツール",
-                "icon": "desk_chat.png",
-                "url": "https://micro-office-chat-app.web.app"
-            },
-            {
-                "id": "strategy_note",
-                "name": "STRATEGYNOTE",
-                "sub": "戦略思考・アイディアメモ",
-                "cat": "思考整理",
-                "desc": "戦略的な思考整理と3D見開きWebデジタルノート",
-                "icon": "strategy_note.jpg",
-                "url": "https://strategy-notebook-app.web.app"
-            },
-            {
-                "id": "aura_gallery",
-                "name": "AURAGALLERY",
-                "sub": "デジタルアート美術室",
-                "cat": "アート鑑賞",
-                "desc": "デジタルアート作品をバーチャル展示・鑑賞できるオンライン美術室",
-                "icon": "aura_gallery.jpg",
-                "url": "https://aura-gallery-app.web.app"
-            },
-            {
-                "id": "sliding_sudoku",
-                "name": "スライド数独",
-                "sub": "スライドナンプレ",
-                "cat": "脳トレパズル",
-                "desc": "タイルをスライドさせて解く新感覚の数独パズルゲーム",
-                "icon": "yukiyanart_chic_badge.jpg",
-                "url": "https://numpre-shift.web.app"
-            }
-        ]
-        self.current_promo_idx = 0
-
+        # 2. 公式10作品マスター（自アプリ login_manager を除外した9作品の自動ローテーション）
         # プロモ アイコン
         self.promo_icon_label = QLabel()
         self.promo_icon_label.setFixedSize(24, 24)
@@ -641,10 +682,12 @@ class AccountManagerWindow(QMainWindow):
         self.promo_title_label.setStyleSheet("font-family: 'Segoe UI', sans-serif;")
         self.promo_desc_label = QLabel()
         self.promo_desc_label.setStyleSheet("color: #9CA3AF; font-size: 10px; font-family: 'Segoe UI', sans-serif;")
+        self.promo_desc_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.promo_desc_label.setMinimumWidth(50)
 
         promo_text_layout.addWidget(self.promo_title_label)
         promo_text_layout.addWidget(self.promo_desc_label)
-        ad_layout.addLayout(promo_text_layout)
+        ad_layout.addLayout(promo_text_layout, stretch=1)
 
         # 前後ナビボタン
         btn_nav_style = """
@@ -698,15 +741,13 @@ class AccountManagerWindow(QMainWindow):
         self.btn_promo_cta.clicked.connect(self.open_current_promo_url)
         ad_layout.addWidget(self.btn_promo_cta)
 
-        ad_layout.addStretch()
-
         # 区切り（問合せは横に配置）
         div2 = QLabel("｜")
         div2.setStyleSheet("color: #4B5563; font-size: 11px;")
         ad_layout.addWidget(div2)
 
-        # 3. 問合せボタン（自社広告の横に配置）
-        btn_feedback = QPushButton("💬 サポート・問合せ")
+        # 3. 問合せボタン（右側：区切り線の横に [💬 ご意見・問合せ ↗] ボタン）
+        btn_feedback = QPushButton("💬 ご意見・問合せ ↗")
         btn_feedback.setStyleSheet("""
             QPushButton {
                 background-color: rgba(16, 185, 129, 0.18);
@@ -722,8 +763,8 @@ class AccountManagerWindow(QMainWindow):
                 color: #FFFFFF;
             }
         """)
-        btn_feedback.setToolTip("yukiyanArt サポート・ご意見要望窓口を開く")
-        btn_feedback.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://yukiyanart-feedback-hub.web.app/?app_id=login_manager")))
+        btn_feedback.setToolTip("yukiyanArt サポート・ご意見・問合せ窓口を開く")
+        btn_feedback.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(f"https://yukiyanart-feedback-hub.web.app/?app_id={self.current_app_id}")))
         ad_layout.addWidget(btn_feedback)
 
         main_layout.addWidget(ad_frame)
@@ -734,9 +775,47 @@ class AccountManagerWindow(QMainWindow):
         self.promo_timer.timeout.connect(lambda: self.rotate_promo(1))
         self.promo_timer.start(6000)
 
+        # オンラインから最新 promo_apps.json を非同期取得
+        threading.Thread(target=self.fetch_online_promo_data, daemon=True).start()
+
         self.refresh_table()
 
-    def get_promo_icon_path(self, icon_name):
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.adjust_promo_text()
+
+    def adjust_promo_text(self):
+        if not hasattr(self, 'promo_desc_label') or not hasattr(self, 'promo_apps') or not self.promo_apps:
+            return
+        app = self.promo_apps[self.current_promo_idx]
+        full_desc = app.get("desc", "")
+        available_width = self.promo_desc_label.width()
+        if available_width < 60:
+            self.promo_desc_label.setText("")
+        else:
+            fm = self.promo_desc_label.fontMetrics()
+            elided = fm.elidedText(full_desc, Qt.ElideRight, available_width)
+            self.promo_desc_label.setText(elided)
+
+    def fetch_online_promo_data(self):
+        try:
+            url = "https://yukiyanart-feedback-hub.web.app/data/promo_apps.json"
+            res = requests.get(url, timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                if isinstance(data, list) and len(data) > 0:
+                    filtered = [item for item in data if item.get("id") != self.current_app_id]
+                    if filtered:
+                        self.promo_apps = filtered
+                        QTimer.singleShot(0, self.update_promo_card)
+        except Exception:
+            pass
+
+    def get_promo_pixmap(self, filename_or_name, image_url=None):
+        if filename_or_name in self.promo_icon_cache:
+            return self.promo_icon_cache[filename_or_name]
+
+        # 1. ローカル探索
         meipass = getattr(sys, '_MEIPASS', None)
         base_dirs = []
         if meipass:
@@ -749,52 +828,92 @@ class AccountManagerWindow(QMainWindow):
             os.path.join(os.path.dirname(__file__), "assets", "icons"),
             os.path.join(os.path.dirname(__file__), "assets"),
             os.path.dirname(__file__),
-            r"C:\Users\mabou.DESKTOP-LEOA8QH\.gemini\antigravity\scratch\sliding-sudoku\assets\icons",
-            r"C:\Users\Iwamoto\.gemini\antigravity\scratch\sliding-sudoku\assets\icons"
+            r"C:\Users\mabou.DESKTOP-LEOA8QH\.gemini\antigravity\scratch\password-manager-app\assets\icons",
+            r"C:\Users\mabou.DESKTOP-LEOA8QH\.gemini\antigravity\scratch\sliding-sudoku\assets\icons"
         ])
         for d in base_dirs:
-            p = os.path.join(d, icon_name)
+            p = os.path.join(d, filename_or_name)
             if os.path.exists(p):
-                return p
-        return ""
+                pix = QPixmap(p)
+                if not pix.isNull():
+                    self.promo_icon_cache[filename_or_name] = pix
+                    return pix
+
+        # 2. Web URL から非同期ダウンロード
+        if image_url:
+            threading.Thread(target=self._download_icon_async, args=(filename_or_name, image_url), daemon=True).start()
+
+        # 3. フォールバック
+        fallback_path = os.path.join(os.path.dirname(__file__), "yukiyanart_logo.jpg")
+        if os.path.exists(fallback_path):
+            pix = QPixmap(fallback_path)
+            if not pix.isNull():
+                return pix
+        return QPixmap()
+
+    def _download_icon_async(self, key, url):
+        try:
+            res = requests.get(url, timeout=5)
+            if res.status_code == 200:
+                pix = QPixmap()
+                pix.loadFromData(res.content)
+                if not pix.isNull():
+                    self.promo_icon_cache[key] = pix
+                    QTimer.singleShot(0, self.update_promo_card)
+        except Exception:
+            pass
 
     def update_promo_card(self):
-        app = self.PROMO_APPS[self.current_promo_idx]
-        icon_path = self.get_promo_icon_path(app["icon"])
-        if icon_path and os.path.exists(icon_path):
-            pix = QPixmap(icon_path)
-            if not pix.isNull():
-                scaled = pix.scaled(24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                self.promo_icon_label.setPixmap(scaled)
-            else:
-                self.promo_icon_label.clear()
+        if not hasattr(self, 'promo_apps') or not self.promo_apps:
+            return
+        self.current_promo_idx = self.current_promo_idx % len(self.promo_apps)
+        app = self.promo_apps[self.current_promo_idx]
+
+        # アイコン取得（imageIcon URL からファイル名を抽出）
+        image_url = app.get("imageIcon") or ""
+        icon_filename = os.path.basename(image_url) if image_url else f"{app.get('id')}.png"
+        pix = self.get_promo_pixmap(icon_filename, image_url)
+        if pix and not pix.isNull():
+            scaled = pix.scaled(24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.promo_icon_label.setPixmap(scaled)
         else:
             self.promo_icon_label.clear()
 
-        cat_colors = {
-            "生産性": "rgba(99, 102, 241, 0.35); color: #C7D2FE",
-            "コミュニケーション": "rgba(14, 165, 233, 0.35); color: #7DD3FC",
-            "思考整理": "rgba(168, 85, 247, 0.35); color: #E9D5FF",
-            "アート鑑賞": "rgba(234, 179, 8, 0.35); color: #FEF08A",
-            "脳トレパズル": "rgba(16, 185, 129, 0.35); color: #6EE7B7"
-        }
-        badge_style = cat_colors.get(app["cat"], "rgba(255, 255, 255, 0.15); color: #E5E7EB")
+        cat = app.get("category", "アプリ")
+        cat_style = "background-color: rgba(99, 102, 241, 0.25); color: #C7D2FE;"
+        if "ゲーム" in cat:
+            cat_style = "background-color: rgba(16, 185, 129, 0.25); color: #6EE7B7;"
+        elif "コミュニケーション" in cat or "チャット" in cat:
+            cat_style = "background-color: rgba(14, 165, 233, 0.25); color: #7DD3FC;"
+        elif "思考" in cat or "アイディア" in cat:
+            cat_style = "background-color: rgba(168, 85, 247, 0.25); color: #E9D5FF;"
+        elif "アート" in cat:
+            cat_style = "background-color: rgba(234, 179, 8, 0.25); color: #FEF08A;"
+        elif "システム" in cat or "ユーティリティ" in cat or "デスクトップ" in cat:
+            cat_style = "background-color: rgba(244, 63, 94, 0.25); color: #FDA4AF;"
 
+        sub_name = app.get("subName", "")
         self.promo_title_label.setText(
-            f'<b style="color:#F9FAFB; font-size:11px;">{app["name"]}</b> '
-            f'<span style="color:#9CA3AF; font-size:9.5px;">({app["sub"]})</span> '
-            f'<span style="background-color:{badge_style}; font-size:9px; font-weight:bold; border-radius:3px; padding:1px 5px;">{app["cat"]}</span>'
+            f'<b style="color:#F9FAFB; font-size:11px;">{app.get("name", "")}</b> '
+            f'<span style="color:#9CA3AF; font-size:9.5px;">({sub_name})</span> '
+            f'<span style="{cat_style} font-size:9px; font-weight:bold; border-radius:3px; padding:1px 5px;">{cat}</span>'
         )
-        self.promo_desc_label.setText(app["desc"])
-        self.btn_promo_cta.setToolTip(f'{app["name"]} をブラウザで開く')
+        self.adjust_promo_text()
+        self.btn_promo_cta.setToolTip(f'{app.get("name", "")} を開く')
 
     def rotate_promo(self, step=1):
-        self.current_promo_idx = (self.current_promo_idx + step) % len(self.PROMO_APPS)
+        if not hasattr(self, 'promo_apps') or not self.promo_apps:
+            return
+        self.current_promo_idx = (self.current_promo_idx + step) % len(self.promo_apps)
         self.update_promo_card()
 
     def open_current_promo_url(self):
-        app = self.PROMO_APPS[self.current_promo_idx]
-        QDesktopServices.openUrl(QUrl(app["url"]))
+        if not hasattr(self, 'promo_apps') or not self.promo_apps:
+            return
+        app = self.promo_apps[self.current_promo_idx]
+        app_id = app.get("id", "")
+        url = f"https://yukiyanart-feedback-hub.web.app/?app_id={app_id}"
+        QDesktopServices.openUrl(QUrl(url))
 
     def open_migration_guide(self):
         dialog = DataMigrationHelpDialog(self)
