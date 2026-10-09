@@ -54,8 +54,8 @@ class QuickTrayMenu(QMenu):
 
         self.addSeparator()
 
-        # Dynamic Bookmark Submenu
-        bookmark_menu = QMenu("🔖  登録サイトを開く (ブックマーク)", self)
+        # Dynamic Bookmark Submenu (Opens browser URL + shows popup)
+        bookmark_menu = QMenu("🔖  登録サイトを開く (ブラウザ起動)", self)
         bookmark_menu.setStyleSheet("""
             QMenu {
                 background-color: #1F2937;
@@ -95,6 +95,46 @@ class QuickTrayMenu(QMenu):
 
         self.addMenu(bookmark_menu)
 
+        # Dynamic Password / Account Info Only Submenu (Pop-up only, without opening browser URL)
+        info_menu = QMenu("📋  ログイン情報を呼び出す (画面表示のみ)", self)
+        info_menu.setStyleSheet("""
+            QMenu {
+                background-color: #1F2937;
+                border: 1px solid #10B981;
+                border-radius: 8px;
+                color: #F9FAFB;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 6px 14px;
+            }
+            QMenu::item:selected {
+                background-color: #059669;
+                color: #FFFFFF;
+            }
+        """)
+
+        has_accounts = False
+        for acc in accounts:
+            name = acc.get("name", "")
+            username = acc.get("username", "")
+            if name:
+                has_accounts = True
+                display_label = f"🔑  {name}"
+                if username:
+                    display_label += f" ({username})"
+
+                action_info = QAction(display_label, self)
+                action_info.triggered.connect(lambda _, a=acc: self.open_popup_only(a))
+                info_menu.addAction(action_info)
+
+        if not has_accounts:
+            action_empty_acc = QAction("（登録アカウントはありません）", self)
+            action_empty_acc.setEnabled(False)
+            info_menu.addAction(action_empty_acc)
+
+        self.addMenu(info_menu)
+
         # Action: Register New Account
         action_register = QAction("➕  新規アカウント登録 (コピー文/画面ロゴから)", self)
         action_register.triggered.connect(self.trigger_register)
@@ -131,6 +171,10 @@ class QuickTrayMenu(QMenu):
                 url = "https://" + url
             QDesktopServices.openUrl(QUrl(url))
 
+        if self.overlay:
+            self.overlay.handle_account_found(acc_data)
+
+    def open_popup_only(self, acc_data: dict):
         if self.overlay:
             self.overlay.handle_account_found(acc_data)
 

@@ -281,12 +281,22 @@ class AccountAddDialog(QDialog):
             self.user_input.setText(edit_data.get("username", ""))
         form_layout.addRow("ID / メール *:", self.user_input)
 
+        pass_layout = QHBoxLayout()
         self.pass_input = QLineEdit()
-        self.pass_input.setEchoMode(QLineEdit.Password)
+        self.pass_input.setEchoMode(QLineEdit.Normal)
         self.pass_input.setPlaceholderText("パスワード")
         if is_edit:
             self.pass_input.setText(edit_data.get("password", ""))
-        form_layout.addRow("パスワード *:", self.pass_input)
+
+        self.btn_toggle_pass = QPushButton("👁️")
+        self.btn_toggle_pass.setToolTip("パスワードの表示/伏字(●)を切り替え")
+        self.btn_toggle_pass.setFixedWidth(36)
+        self.btn_toggle_pass.setStyleSheet("background-color: #374151; color: white; font-weight: bold; padding: 4px;")
+        self.btn_toggle_pass.clicked.connect(self.toggle_pass_visibility)
+
+        pass_layout.addWidget(self.pass_input)
+        pass_layout.addWidget(self.btn_toggle_pass)
+        form_layout.addRow("パスワード *:", pass_layout)
 
         self.level_combo = QComboBox()
         self.level_combo.addItem("🟢 セキュリティ：低 (認証なし・すぐ表示)", 1)
@@ -386,6 +396,14 @@ class AccountAddDialog(QDialog):
         btn_box.addWidget(btn_cancel)
         btn_box.addWidget(btn_save)
         layout.addLayout(btn_box)
+
+    def toggle_pass_visibility(self):
+        if self.pass_input.echoMode() == QLineEdit.Normal:
+            self.pass_input.setEchoMode(QLineEdit.Password)
+            self.btn_toggle_pass.setText("🔒")
+        else:
+            self.pass_input.setEchoMode(QLineEdit.Normal)
+            self.btn_toggle_pass.setText("👁️")
 
     def trigger_capture_logo(self):
         if self.overlay_callback:
