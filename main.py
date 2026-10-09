@@ -12,9 +12,19 @@ from account_manager_ui import AccountManagerWindow
 from quick_menu import QuickTrayMenu
 from autostart_helper import remove_all_registry_autostart
 
+LOG_PATH = r"C:\Users\Iwamoto\.gemini\antigravity\scratch\password-manager-app\debug_run.log"
+
+def log_msg(msg: str):
+    try:
+        with open(LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(msg + "\n")
+    except Exception:
+        pass
+
 def excepthook(exc_type, exc_value, exc_traceback):
     err_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
     print(f"[App Error]\n{err_msg}")
+    log_msg(f"[App Error]\n{err_msg}")
 
 sys.excepthook = excepthook
 
@@ -54,6 +64,7 @@ def generate_sample_csv(target_dir: str):
     return csv_path
 
 def main():
+    log_msg(f"[Start] main() started at pid={os.getpid()} args={sys.argv}")
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
@@ -61,9 +72,14 @@ def main():
     lock_key = "LoginManager_SingleInstance_Mutex_Key_2026"
     shared_mem = QSharedMemory(lock_key)
     if not shared_mem.create(1):
-        # Another instance is already running! Exit silently.
-        print("[Single Instance] Another instance of LoginManager is already running. Exiting second instance.")
-        sys.exit(0)
+        log_msg(f"[Single Instance] create(1) failed, error={shared_mem.errorString()}")
+        shared_mem.attach()
+        shared_mem.detach()
+        if not shared_mem.create(1):
+            log_msg("[Single Instance] Another instance of LoginManager is already running. Exiting.")
+            print("[Single Instance] Another instance of LoginManager is already running. Exiting second instance.")
+            sys.exit(0)
+    log_msg("[Single Instance] Acquired lock successfully.")
 
     # Clean up legacy registry keys that caused double launch on startup
     remove_all_registry_autostart()
@@ -72,9 +88,11 @@ def main():
     icon_file = ensure_icon_file(app_dir)
     generate_sample_csv(app_dir)
 
+    log_msg("[Init] Initializing CryptoVault, Overlay, ManagerWindow...")
     vault = CryptoVault()
     overlay = ScreenSelectionOverlay(vault)
     manager_win = AccountManagerWindow(vault, overlay_instance=overlay)
+    log_msg("[Init] Initialized UI components successfully.")
 
     app_icon = QIcon(icon_file)
     app.setWindowIcon(app_icon)
@@ -107,7 +125,10 @@ def main():
         manager_win.raise_()
         manager_win.activateWindow()
 
-    sys.exit(app.exec())
+    log_msg("[App] Entering Qt event loop app.exec()...")
+    ret = app.exec()
+    log_msg(f"[Exit] app.exec() returned {ret}")
+    sys.exit(ret)
 
 if __name__ == "__main__":
     main()
