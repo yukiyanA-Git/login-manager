@@ -32,6 +32,8 @@ def build_standalone_exe():
         "--hidden-import=winrt.windows.foundation",
         "--hidden-import=winrt.windows.media.ocr",
         "--hidden-import=winrt.windows.security.credentials.ui",
+        "--hidden-import=password_generator",
+        "--hidden-import=password_generator_dialog",
         main_py
     ]
 

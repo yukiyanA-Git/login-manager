@@ -135,6 +135,11 @@ class QuickTrayMenu(QMenu):
 
         self.addMenu(info_menu)
 
+        # Action: Password Generator
+        action_generator = QAction("🎲  パスワード自動生成ツール", self)
+        action_generator.triggered.connect(self.trigger_generator)
+        self.addAction(action_generator)
+
         # Action: Register New Account
         action_register = QAction("➕  新規アカウント登録 (コピー文/画面ロゴから)", self)
         action_register.triggered.connect(self.trigger_register)
@@ -177,6 +182,15 @@ class QuickTrayMenu(QMenu):
     def open_popup_only(self, acc_data: dict):
         if self.overlay:
             self.overlay.handle_account_found(acc_data)
+
+    def trigger_generator(self):
+        from password_generator_dialog import PasswordGeneratorDialog
+        dialog = PasswordGeneratorDialog(parent=None, register_callback=self.on_generator_register)
+        dialog.exec()
+
+    def on_generator_register(self, pw: str):
+        clip_text = QApplication.clipboard().text().strip()
+        self.manager_win.open_add_dialog(initial_name=clip_text, initial_password=pw)
 
     def trigger_register(self):
         clip_text = QApplication.clipboard().text().strip()

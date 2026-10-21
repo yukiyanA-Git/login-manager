@@ -225,7 +225,7 @@ class MasterPinSettingDialog(QDialog):
 
 
 class AccountAddDialog(QDialog):
-    def __init__(self, initial_name: str = "", logo_b64: str = "", edit_data: dict = None, overlay_callback=None, parent=None):
+    def __init__(self, initial_name: str = "", logo_b64: str = "", initial_password: str = "", edit_data: dict = None, overlay_callback=None, parent=None):
         super().__init__(parent)
         self.edit_data = edit_data
         is_edit = bool(edit_data)
@@ -287,6 +287,13 @@ class AccountAddDialog(QDialog):
         self.pass_input.setPlaceholderText("パスワード")
         if is_edit:
             self.pass_input.setText(edit_data.get("password", ""))
+        elif initial_password:
+            self.pass_input.setText(initial_password)
+
+        self.btn_gen_pass = QPushButton("🎲 自動生成")
+        self.btn_gen_pass.setToolTip("条件を指定して安全なパスワードを自動生成")
+        self.btn_gen_pass.setStyleSheet("background-color: #2563EB; color: white; font-weight: bold; padding: 4px 10px; font-size: 11px;")
+        self.btn_gen_pass.clicked.connect(self.open_generator_for_field)
 
         self.btn_toggle_pass = QPushButton("👁️")
         self.btn_toggle_pass.setToolTip("パスワードの表示/伏字(●)を切り替え")
@@ -295,6 +302,7 @@ class AccountAddDialog(QDialog):
         self.btn_toggle_pass.clicked.connect(self.toggle_pass_visibility)
 
         pass_layout.addWidget(self.pass_input)
+        pass_layout.addWidget(self.btn_gen_pass)
         pass_layout.addWidget(self.btn_toggle_pass)
         form_layout.addRow("パスワード *:", pass_layout)
 
@@ -404,6 +412,16 @@ class AccountAddDialog(QDialog):
         else:
             self.pass_input.setEchoMode(QLineEdit.Normal)
             self.btn_toggle_pass.setText("👁️")
+
+    def open_generator_for_field(self):
+        from password_generator_dialog import PasswordGeneratorDialog
+        dialog = PasswordGeneratorDialog(parent=self, for_field_callback=self.set_field_password)
+        dialog.exec()
+
+    def set_field_password(self, pw: str):
+        self.pass_input.setText(pw)
+        self.pass_input.setEchoMode(QLineEdit.Normal)
+        self.btn_toggle_pass.setText("👁️")
 
     def trigger_capture_logo(self):
         if self.overlay_callback:
@@ -618,6 +636,11 @@ class AccountManagerWindow(QMainWindow):
         btn_add.setStyleSheet("background-color: #10B981; color: white; font-weight: bold; padding: 6px 14px;")
         btn_add.clicked.connect(lambda: self.open_add_dialog())
 
+        btn_gen = QPushButton("🎲 パスワード自動生成")
+        btn_gen.setStyleSheet("background-color: #0078D4; color: white; font-weight: bold; padding: 6px 14px;")
+        btn_gen.setToolTip("数字のみ(PIN)から英数記号混在まで、安全なパスワードを自動生成してそのまま登録")
+        btn_gen.clicked.connect(self.open_password_generator_dialog)
+
         btn_template = QPushButton("📄 CSV雛形データを出力")
         btn_template.setStyleSheet("background-color: #059669; color: white; font-weight: bold; padding: 6px 12px;")
         btn_template.clicked.connect(self.export_csv_template)
@@ -635,6 +658,7 @@ class AccountManagerWindow(QMainWindow):
         btn_test_overlay.clicked.connect(self.trigger_search)
 
         action_layout.addWidget(btn_add)
+        action_layout.addWidget(btn_gen)
         action_layout.addWidget(btn_template)
         action_layout.addWidget(btn_export)
         action_layout.addWidget(btn_import)
@@ -1127,9 +1151,17 @@ class AccountManagerWindow(QMainWindow):
                 self.vault.save_vault()
                 self.refresh_table()
 
-    def open_add_dialog(self, initial_name: str = "", logo_b64: str = ""):
+    def open_password_generator_dialog(self):
+        from password_generator_dialog import PasswordGeneratorDialog
+        dialog = PasswordGeneratorDialog(parent=self, register_callback=self.on_generator_register)
+        dialog.exec()
+
+    def on_generator_register(self, pw: str):
+        self.open_add_dialog(initial_password=pw)
+
+    def open_add_dialog(self, initial_name: str = "", logo_b64: str = "", initial_password: str = ""):
         overlay_cb = self.overlay.show_overlay_for_register if self.overlay else None
-        dialog = AccountAddDialog(initial_name=initial_name, logo_b64=logo_b64, overlay_callback=overlay_cb, parent=self)
+        dialog = AccountAddDialog(initial_name=initial_name, logo_b64=logo_b64, initial_password=initial_password, overlay_callback=overlay_cb, parent=self)
         if dialog.exec() == QDialog.Accepted:
             data = dialog.get_data()
             if data["name"]:
